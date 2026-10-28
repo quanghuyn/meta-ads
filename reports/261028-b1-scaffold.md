@@ -75,3 +75,30 @@ typecheck, lint, vitest (1 smoke test), build đều đạt. Playwright chưa c�
 - Xóa `src/app/demo`; hàm định dạng chuyển sang `src/lib/format.ts`, biểu đồ sang `src/app/bao-cao/charts.tsx`. Build production đạt (route `/` và `/bao-cao`).
 - Mục 4: bỏ AOV, thêm CPC.
 - BLOCKER deploy: chưa có repo GitHub "meta-ads" (không có công cụ tạo repo; GitHub MCP lỗi xác thực). Người dùng chọn deploy công khai. Dashboard chưa có đăng nhập, số liệu là ảnh chụp tĩnh 28/10.
+
+## Worker đồng bộ (tự động), bước 1
+- `supabase/functions/sync/index.ts`: Edge Function chỉ-đọc, `?job=pancake|pos&days=N`, xác thực bằng header `x-worker-secret` (secret `WORKER_TRIGGER_SECRET`). Đã deploy lên project Meta ads (verify_jwt=false, tự xác thực); gọi không secret trả 401.
+- POS: `GET https://pos.pages.fm/api/v1/shops/1546758/orders` (docs chính thức, khóa qua `api_key`). Tên tham số lọc (`update_status`, `start_date_time`, `end_date_time`, `order_sources`) lấy theo schema của công cụ POS trong phiên chat; docs công khai chỉ ghi camelCase, CHƯA kiểm với API trực tiếp. Phải đối chiếu lần chạy đầu: 27/10 phải ra 16 đơn tính (đủ trạng thái), Total Sale 50.479.985.
+- Pancake: `GET https://pages.fm/api/public_api/v2/pages/196059750263125/conversations`, trang 60, `last_conversation_id`. Nhãn lưu dạng bằng chứng (ảnh chụp hiện tại, thay mỗi lần chạy).
+- Đã tạo workspace + 2 kết nối (inbox 196059750263125, pos 1546758) trong DB.
+- Bản deploy là bản phẳng (import `./`) còn bản trong repo import `../_shared/...`; cần thống nhất khi dùng Supabase CLI.
+- CHƯA làm: Meta (thiếu token), lịch chạy 30 phút, RPC tổng hợp, dashboard đọc từ DB. Chưa chạy thử với dữ liệu thật vì giá trị secret nằm ở phía người dùng.
+- Thư mục chưa commit (chờ người dùng cho phép).
+
+## Worker Meta (ADS Noti MCP)
+- ADS Noti MCP (`https://mcp.done.vn/mcp?key=…`, khóa trong secret `ADSNOTI_MCP_URL`) có credential `ty3x…` chứa cả NK2 và NK3. Chỉ gọi `meta_get_insights` (chỉ đọc); metrics phải truyền tường minh (mặc định gây lỗi Facebook #100).
+- Edge Function `sync-meta` (`supabase/functions/sync-meta/index.ts`, bản deploy là bản ASCII hoá chú thích) ghi `ad_entities` (campaign) và `ad_insights_daily` (profile `campaign-daily-v1`). Đã tạo 2 kết nối meta + profile trong DB.
+- CHƯA chạy thật: giao thức MCP (initialize, session, SSE) viết theo chuẩn, chưa kiểm với máy chủ done.vn. Đối chiếu lần đầu: 27/10 NK3 = 12.776.137, NK2 = 18.973.776.
+- Đã đối chiếu schema thật với worker `sync`: cột và ràng buộc khớp.
+
+## Tự động đồng bộ: kết quả chạy thật (28/10)
+- Lịch pg_cron mỗi 30 phút (POS :00/:30, Pancake :05/:35, Meta :10/:40, days=2) gọi Edge Function qua `public.call_sync_worker`, dùng token sinh trong vault (`x-cron-token`, kiểm bằng RPC `verify_cron_token`). Migration `20261028150000_schedule_sync_workers.sql`.
+- POS: lọc nguồn đơn ở worker (`page_id`=196059750263125 và `order_sources`=-1). Đối chiếu: 27/10 = 16 đơn tính, 50.479.985 (khớp POS). 26/10 = 11 đơn/35.319.992; 28/10 (chưa hết ngày) = 18 đơn/58.579.987.
+- Pancake: 904 hội thoại cho 7 ngày, ghi thành công.
+- Meta qua khóa ADS Noti: credential của khóa khác credential trong chat nên worker tự dò bằng `meta_get_ad_accounts`. NK3 chạy được (27/10: 14 chiến dịch, 12.780.951, lệch số cũ 12.776.137 do Meta cập nhật muộn). NK2: lần đầu danh sách tài khoản rỗng; đã thêm retry, đang kiểm.
+- Backfill 7 ngày POS vượt 120s của pg_net; lịch dùng days=2 nên không ảnh hưởng. Backfill nên chạy từng ngày.
+- CHƯA làm: hàm tổng hợp trong DB, dashboard đọc từ DB, so sánh nhãn Pancake với cột trùng/không nhu cầu đã có.
+- Meta NK2 chạy được sau retry: 27/10 = 18.976.828 (số cũ 18.973.776), NK3 = 12.780.969. Cả hai lệch vài nghìn do Meta cập nhật muộn.
+- Đối chiếu hội thoại 27/10 từ DB: 112 hội thoại, trùng 23, không nhu cầu 10 (khớp). Có SĐT 54 (cũ 52), qualified 35 (cũ 33), có nhãn nhu cầu 39 (cũ 37): nhãn và SĐT là trạng thái hiện tại nên tăng theo thời gian. Tên nhãn thật là "XTS + RLCD" (có khoảng trắng), "Trùng khách", "Ko có nhu cầu".
+- Dữ liệu từng ngày 22 đến 28/10 đã có trong DB cho cột hội thoại (trước chỉ có 27/10).
+- CHỜ QUYẾT ĐỊNH NGƯỜI DÙNG: dashboard đọc DB bằng cách nào (xem tin nhắn cuối phiên).
