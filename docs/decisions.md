@@ -26,3 +26,14 @@ Mục "Chờ xác nhận" chưa được chốt: làm dưới dạng cấu hình
 5. **Quảng cáo ngoài các tài khoản đã biết.** Ngày 28/10 có 3 đơn (khoảng 9,7 triệu) gắn mã quảng cáo không thuộc Nam Khoa 2 hay 3. Cần xác định tài khoản sở hữu.
 6. **Token chính thức cho bản chạy thật:** Meta (quyền `ads_read`), page Pancake, khóa POS. Chỉ cất trong kho bí mật của Supabase/Vercel, không dán vào chat. Hai token page Pancake đã dán trong chat nên tạo lại.
 7. **Môi trường:** máy chưa cài Node/npm, chưa thể scaffold và chạy test web. Connector GitHub đang lỗi `Authorization header is badly formatted`.
+
+## Luồng data: quyết định bổ sung (28/10/2026, chủ dự án trả lời)
+
+| # | Quyết định | Ghi chú triển khai |
+|---|---|---|
+| D10 | Đơn POS về chiến dịch theo `ad_id` trên đơn. | Đơn không có ad_id hoặc ad_id ngoài các tài khoản đã biết hiện riêng (unattributed), không chia theo tỷ lệ chi tiêu. |
+| D11 | Mess về quảng cáo theo **tất cả** `ad_ids` của hội thoại, không chỉ `ad_ids[0]`. Thay thế cách "chạm đầu" đang ghi ở mục chờ xác nhận 3 và ở báo cáo mục 5 (27/10). | Ở cấp chiến dịch/quảng cáo, một hội thoại có thể đếm trong nhiều dòng, nên tổng các dòng có thể lớn hơn tổng hội thoại thật. Dòng tổng phải đếm hội thoại distinct, không cộng các dòng. UI cần ghi chú điều này. Cần bảng ad_touches đầy đủ cho mọi ad_id (worker hiện chỉ cần lấy đủ danh sách). |
+| D12 | CIR đo theo ngày: chi tiêu ngày X / Total Sale ngày X. | Không làm CIR theo cohort mess ở MVP. Ghi chú trên UI: đơn có thể đến từ mess ngày trước. |
+| D13 | Thẻ sale chia qualified thành tốt / không đạt (cột chất lượng riêng). | Qualified vẫn là nhu cầu + SĐT. Ánh xạ thẻ → tốt/không đạt vẫn chờ xác nhận (mục 1 phần "Chờ xác nhận"). Thẻ là trạng thái hiện tại, không backdate. |
+
+Luồng: Meta (spend theo ngày chi tiêu, campaign) | Pancake (hội thoại theo ngày tạo, qua mọi ad_id → ad → campaign; nhu cầu + SĐT → qualified; thẻ sale → tốt/không đạt) | POS (Total Sale theo ngày tạo đơn, qua `order.ad_id` → ad → campaign). Nối bằng `ad_id`; cần Meta cấp ad để ad → campaign.
