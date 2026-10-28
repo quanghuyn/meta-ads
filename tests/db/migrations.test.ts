@@ -110,6 +110,31 @@ describe("report_daily", () => {
     expect(Number(r.rows[0].spend)).toBe(0);
   });
 
+  it("đối soát chiến dịch: đơn gán theo ad_id, đơn không gán hiện riêng, tổng không đổi", async () => {
+    const { db, w } = await seed();
+    const meta = (await db.query<{ id: string }>(`select id from source_connections where provider='meta'`)).rows[0].id;
+    const pos = (await db.query<{ id: string }>(`select id from source_connections where provider='pos'`)).rows[0].id;
+    const c1 = (await db.query<{ id: string }>(`select id from ad_entities where source_id='c1'`)).rows[0].id;
+    await db.query(`insert into ad_entities(workspace_id,connection_id,kind,source_id,parent_id) values ($1,$2,'ad','ad1',$3)`, [w, meta, c1]);
+    const upd = async (sid: string, ad: string | null) => db.query(`update orders set source_ad_id=$1 where source_id=$2`, [ad, sid]);
+    await upd("o1", "ad1"); await upd("o2", "adX"); // o3 không tính Total Sale
+    await db.query(`insert into orders(workspace_id,connection_id,source_id,order_created_at,source_status,currency) values ($1,$2,'o4',now(),'1','VND')`, [w, pos]);
+    const o4 = (await db.query<{ id: string }>(`select id from orders where source_id='o4'`)).rows[0].id;
+    await db.query(`insert into order_total_sale_facts(workspace_id,order_id,contract_version,source_fact_key,recognition_date,included,amount,currency) values ($1,$2,1,'order','2026-10-27',true,7,'VND')`, [w, o4]);
+    await db.exec(`set role service_role`);
+    const r = await db.query<{ bucket: string; campaign_source_id: string | null; spend: string; orders: string; total_sale: string }>(
+      `select * from report_campaign_daily($1,'2026-10-27','2026-10-27')`, [w]);
+    const by = (b: string, c?: string) => r.rows.find((x) => x.bucket === b && (c === undefined || x.campaign_source_id === c))!;
+    expect(Number(by("campaign", "c1").spend)).toBe(100);
+    expect(Number(by("campaign", "c1").total_sale)).toBe(30);
+    expect(Number(by("campaign", "c2").spend)).toBe(50);
+    expect(Number(by("campaign", "c2").orders)).toBe(0);
+    expect(Number(by("ad_unknown").total_sale)).toBe(20);
+    expect(Number(by("no_ad_id").total_sale)).toBe(7);
+    expect(r.rows.reduce((a, x) => a + Number(x.total_sale), 0)).toBe(57);
+    expect(r.rows.reduce((a, x) => a + Number(x.spend), 0)).toBe(150);
+  });
+
   it("chặn người ngoài workspace và vai trò sales", async () => {
     const { db, w } = await seed();
     const u = (await db.query<{ id: string }>(`insert into auth.users default values returning id`)).rows[0].id;
