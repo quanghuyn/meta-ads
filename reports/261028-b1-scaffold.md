@@ -102,3 +102,11 @@ typecheck, lint, vitest (1 smoke test), build đều đạt. Playwright chưa c�
 - Đối chiếu hội thoại 27/10 từ DB: 112 hội thoại, trùng 23, không nhu cầu 10 (khớp). Có SĐT 54 (cũ 52), qualified 35 (cũ 33), có nhãn nhu cầu 39 (cũ 37): nhãn và SĐT là trạng thái hiện tại nên tăng theo thời gian. Tên nhãn thật là "XTS + RLCD" (có khoảng trắng), "Trùng khách", "Ko có nhu cầu".
 - Dữ liệu từng ngày 22 đến 28/10 đã có trong DB cho cột hội thoại (trước chỉ có 27/10).
 - CHỜ QUYẾT ĐỊNH NGƯỜI DÙNG: dashboard đọc DB bằng cách nào (xem tin nhắn cuối phiên).
+
+## Phiên tiếp (clone lại repo trên môi trường cloud): hàm tổng hợp trong DB
+- Thêm migration `20261028160000_create_reporting_functions.sql`: RPC `public.report_daily(workspace, from, to)` (security definer, chỉ admin/marketing hoặc service_role). Gộp riêng từng nguồn theo ngày VN rồi mới nối (spend không bị nhân): chi tiêu/impressions/clicks (campaign, profile active, connection active), đơn + Total Sale (fact included, contract_version mới nhất, theo recognition_date), hội thoại / có SĐT / qualified (thẻ XTS, RLCD, "XTS + RLCD" đang active + có SĐT; loại hội thoại excluded). Không trả SĐT hay nội dung khách.
+- Test mới trong `tests/db/migrations.test.ts` (PGlite): tổng spend 2 chiến dịch, ranh giới ngày VN (00:30 VN = 17:30 UTC hôm trước), qualified, chặn người ngoài workspace. Bỏ qua migration `schedule_sync` trong harness vì cần pg_cron/pg_net/vault.
+- Sửa `tsconfig.json`/`eslint.config.mjs` loại 2 Edge Function Deno khỏi typecheck/lint Next (trước đó typecheck và lint đỏ); Deno check vẫn phải chạy riêng (chưa chạy: máy này chưa có deno).
+- Kết quả: vitest 17/17 đạt, typecheck, lint, build đạt.
+- CHƯA áp migration lên project Supabase `btbsmfaakcorhluvkytx` (tác động DB thật, chờ người dùng đồng ý). Chưa đối soát `report_daily` với số 27/10 trên DB thật (kỳ vọng: 112 hội thoại, 16 đơn, 50.479.985).
+- Giới hạn: DB mới đồng bộ campaign-level cho Meta và đơn chỉ có `source_ad_id` (chưa có ad entity), nên CIR theo chiến dịch/đơn từ DB chưa làm được; cần sync Meta cấp ad + bảng ad→campaign. Dashboard `/bao-cao` vẫn đọc ảnh chụp tĩnh; chờ quyết định cách đọc DB (đề xuất: Server Component gọi RPC bằng service-role phía server cho tới khi có Auth/B3).

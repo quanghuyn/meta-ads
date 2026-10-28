@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Edge Function chạy trên Deno, kiểm riêng bằng deno check.
+    "supabase/functions/sync/**",
+    "supabase/functions/sync-meta/**",
   ]),
 ]);
 
