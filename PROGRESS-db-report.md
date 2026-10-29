@@ -30,4 +30,15 @@
 - Final follow-up checks: npm test PASS 7 files / 28 tests (11.49 s); npm run typecheck PASS; npm run lint PASS; NEXT_TELEMETRY_DISABLED=1 npm run build PASS (all routes + proxy). git diff --check PASS. Synthetic webhook tests now use invented account IDs only. Initial test assertion selected the empty second account, fixed to select explicit synthetic account; type declaration and temporary helper lint failures fixed before final checks.
 - Node UTF-8 byte roundtrip and U+FFFD scan PASS for report/login pages and reporting docs. No deploy/replay/browser/production changes. Same nonblocking Next external lockfile and Vite native-loader warnings as baseline.
 
-STATUS: ALL DONE
+STATUS: IN PROGRESS
+
+## Parent live verification 2026-10-29
+- Parent reran all 28 tests successfully after 41129be.
+- Applied exact tested 060000 + 070000 SQL transaction through signed-in Dashboard.
+- Enabled separate campaign report routes for NK2/NK3 existing IDs. Owner additionally approved 3275227329354665 as a separate source (same name, different ID); timezone/currency intentionally unknown for this new source.
+- Reprocessed 60 actual receipts successfully after route provisioning; test/probe receipts excluded.
+- Latest source vs normalized spend matched with difference 0 for all 3 accounts x 3 levels. NK2 campaign spend 10889843, old NK3 7833036, new NK3 1150831 at source snapshot 16:43 (coverage not guaranteed full account).
+- Local production server http://127.0.0.1:3005/bao-cao runs; browser correctly displays authentication_required and no data when signed out. .env.local configured with public publishable key only. No cloud UI publish/push.
+- Remaining blocker: auth.users still zero for owner email; opened Create user and handoff timed out. Do not retry without asking owner. Need human set password in Supabase UI, then grant admin/marketing membership ONLY to exact owner user+workspace, then handoff login at local report and verify account/day selection.
+- Pulse fd6dd5e9-fd77-47d1-8aa1-dcd20c630b4e remains active; state details .local/deployment-state.json.
+STATUS: BLOCKED: human account creation and authenticated browser acceptance pending
