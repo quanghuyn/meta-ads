@@ -17,10 +17,17 @@
 
 ## Deliberate safety constraints / deployment handoff
 - Operator must provision explicit meta_webhook_routes for existing active source_connections; no default workspace/account. NK2 1492352028605038 and NK3 1114645597047575 are separate connections. Do not enable NK1 unless owner changes scope.
-- Envelope schema_version currently accepts 1 / "1" only. Every row requires account_id (or explicit envelope account_id), level-specific numeric ID, date_start AND date_stop with identical dates. Multi-day aggregate rows or rows with no proven daily granularity reject, never assigned spend to date_start. Confirm actual envelope/row version and date_stop before enabling; raw staging remains preserved on rejection.
+- Envelope schema_version accepts 1 / "1" only. Every row requires account_id (or explicit envelope account_id), level-specific numeric ID and date_start. With the additive observed-shape migration, date_stop may be absent only with row date and single-day envelope range both matching date_start. A present stop must match, and optional row date must agree. Multi-day aggregate rows or unproven daily granularity reject; raw staging remains preserved.
 - Latest per entity/day, not inferred complete account snapshot. Missing entities not deleted or zeroed; UI labels received-row coverage. This is not certified full-account totals.
 - POS/Pancake/CIR are explicitly unavailable on the new screen, not replaced with static values or zeros.
 - Receiver's existing 202 response still says pending_mapping/report_updated=false even when DB trigger processes; receipt DB status is authoritative. No receiver cloud redeploy performed.
 - Existing pending receipts require service-role process_meta_webhook(id) after routes enabled. No automatic production replay in migration.
+
+## Observed export compatibility follow-up (local only)
+- Added additive migration 20261029070000: missing date_stop requires matching row date/date_start and single-day envelope range with ISO calendar validation. Present stop and row date must agree. JSON null stop still rejects.
+- Actual actions_onsite_conversion_messaging_conversation_started_7d now maps to messaging_actions; both aliases must agree after normalization, including null. Other observed reach/frequency/order/cost fields remain preserved raw-only.
+- Node byte/codepoint inspection found zero U+FFFD in both UI files and docs; most shell-displayed mojibake was console decoding, not source corruption. Confirmed literal question marks in both loading fallbacks and replaced them with real UTF-8 Vietnamese. Rewrote/revalidated login labels as UTF-8; existing labels were already correct. Added synthetic observed-shape, date/range, alias/null regressions.
+- Final follow-up checks: npm test PASS 7 files / 28 tests (11.49 s); npm run typecheck PASS; npm run lint PASS; NEXT_TELEMETRY_DISABLED=1 npm run build PASS (all routes + proxy). git diff --check PASS. Synthetic webhook tests now use invented account IDs only. Initial test assertion selected the empty second account, fixed to select explicit synthetic account; type declaration and temporary helper lint failures fixed before final checks.
+- Node UTF-8 byte roundtrip and U+FFFD scan PASS for report/login pages and reporting docs. No deploy/replay/browser/production changes. Same nonblocking Next external lockfile and Vite native-loader warnings as baseline.
 
 STATUS: ALL DONE

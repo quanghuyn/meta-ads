@@ -15,12 +15,12 @@ async function seed() {
   const w = (await db.query<{ id: string }>(`insert into workspaces(name) values ('synthetic') returning id`)).rows[0].id;
   const u = (await db.query<{ id: string }>(`insert into auth.users default values returning id`)).rows[0].id;
   await db.query(`insert into memberships(workspace_id,user_id,role) values ($1,$2,'marketing')`, [w,u]);
-  for (const id of ['1492352028605038','1114645597047575']) {
+  for (const id of ['9000000000000001','9000000000000002']) {
     await db.query(`with c as (insert into source_connections(workspace_id,provider,source_id,state,name) values ($1,'meta',$2,'active','synthetic') returning *)
       insert into meta_webhook_routes(connection_id,workspace_id,report_level,enabled) select id,workspace_id,'campaign',true from c`, [w,id]);
   }
   let nextId = 0;
-  const payload = (patch: Record<string, unknown> = {}) => ({ schema_version: 1, delivery_id: `synthetic-${++nextId}`, generated_at: '2026-01-02T10:00:00Z', level: 'campaign', range: { from: '2026-01-01', to: '2026-01-01' }, rows: [{ account_id: "'1492352028605038", campaign_id: "'123", campaign_name: 'synthetic campaign', date_start: "'2026-01-01", date_stop: '2026-01-01', spend: '1234,50', impressions: '100', clicks: null }], ...patch });
+  const payload = (patch: Record<string, unknown> = {}) => ({ schema_version: 1, delivery_id: `synthetic-${++nextId}`, generated_at: '2026-01-02T10:00:00Z', level: 'campaign', range: { from: '2026-01-01', to: '2026-01-01' }, rows: [{ account_id: "'9000000000000001", campaign_id: "'123", campaign_name: 'synthetic campaign', date_start: "'2026-01-01", date_stop: '2026-01-01', spend: '1234,50', impressions: '100', clicks: null }], ...patch });
   const send = async (p: unknown) => {
     await db.exec('set role service_role');
     const { rows } = await db.query<{ id: string }>(`insert into meta_webhook_inbox(payload,payload_bytes) values ($1,100) returning id`, [JSON.stringify(p)]);
@@ -54,16 +54,49 @@ describe('webhook normalization and report security', () => {
   });
   it('excludes tests, invalid versions, missing/unknown account, range aggregates, invalid numbers atomically', async () => {
     const s=await seed(); const p=s.payload();
-    for(const [patch,code] of [[{_test:true},'test_excluded'],[{_test:'false'},'test_excluded'],[{schema_version:2},'unsupported_schema'],[{rows:[{...p.rows[0],account_id:null}]},'missing_account'],[{rows:[{...p.rows[0],account_id:'1240787304172940'}]},'unmapped_account'],[{rows:[{...p.rows[0],date_stop:'2026-01-02'}]},'non_daily_row'],[{rows:[{...p.rows[0],date_stop:null}]},'non_daily_row'],[{rows:[{...p.rows[0],spend:'1.234,5'}]},'invalid_number'],[{rows:[{...p.rows[0],impressions:'1,5'}]},'invalid_number'],[{rows:[p.rows[0],p.rows[0]]},'duplicate_row_key']] as const) {
+    for(const [patch,code] of [[{_test:true},'test_excluded'],[{_test:'false'},'test_excluded'],[{schema_version:2},'unsupported_schema'],[{rows:[{...p.rows[0],account_id:null}]},'missing_account'],[{rows:[{...p.rows[0],account_id:'9000000000000003'}]},'unmapped_account'],[{rows:[{...p.rows[0],date_stop:'2026-01-02'}]},'non_daily_row'],[{rows:[{...p.rows[0],date_stop:null}]},'non_daily_row'],[{rows:[{...p.rows[0],spend:'1.234,5'}]},'invalid_number'],[{rows:[{...p.rows[0],impressions:'1,5'}]},'invalid_number'],[{rows:[p.rows[0],p.rows[0]]},'duplicate_row_key']] as const) {
       expect((await s.send(s.payload(patch))).mapping_code).toBe(code);
       expect(await s.facts()).toHaveLength(0);
     }
     expect((await s.send(s.payload({rows:[p.rows[0],{...p.rows[0],campaign_id:'456',spend:'bad'}]}))).status).toBe('rejected');
     expect(await s.facts()).toHaveLength(0);
   });
+  it('accepts observed daily shape with actual messaging alias and preserves raw row', async () => {
+    const s=await seed(); const base=s.payload().rows[0];
+    const { date_stop: omitted, ...row }=base; void omitted;
+    const actual={...row,date:'2026-01-01',actions_onsite_conversion_messaging_conversation_started_7d:'12'};
+    expect((await s.send(s.payload({platform:'meta',generated_at:'2026-01-02T10:00:00+07:00',rows:[actual]}))).mapping_code).toBe('processed');
+    expect((await s.db.query('select messaging_actions,raw_row from meta_webhook_facts')).rows[0]).toEqual({messaging_actions:12,raw_row:actual});
+    expect((await s.report()).rows.find(r=>r.account_id==='9000000000000001')).toMatchObject({messaging_actions:12});
+  });
+  it('fails closed on missing daily proof, invalid dates/ranges, and messaging alias conflicts', async () => {
+    const s=await seed();const {date_stop: omitted,...base}=s.payload().rows[0];void omitted;
+    const row={...base,date:'2026-01-01'};
+    for(const patch of [
+      {rows:[base]}, {rows:[{...row,date:'2026-01-02'}]},
+      {rows:[{...row,date:'2026-02-30'}]}, {rows:[{...row,date_start:'2026-02-30'}]},
+      {range:{from:'2026-01-01',to:'2026-01-02'},rows:[row]},
+      {range:{from:'2026-01-01',to:'2026-02-30'},rows:[row]},
+      {range:{from:'2026-01-01'},rows:[row]}, {range:null,rows:[row]},
+      {range:{from:'2026-1-1',to:'2026-01-01'},rows:[row]},
+      {rows:[{...row,date_stop:'2026-01-01',date:'2026-01-02'}]},
+    ]) { expect((await s.send(s.payload(patch))).status).toBe('rejected');expect(await s.facts()).toHaveLength(0); }
+    for(const [legacy,actual] of [[2,3],[null,0],[0,null]]) {
+      expect((await s.send(s.payload({rows:[{...row,messaging_actions:legacy,actions_onsite_conversion_messaging_conversation_started_7d:actual}]}))).mapping_code).toBe('messaging_alias_conflict');
+    }
+    expect(await s.facts()).toHaveLength(0);
+    expect((await s.send(s.payload({rows:[{...row,messaging_actions:'3',actions_onsite_conversion_messaging_conversation_started_7d:3}]}))).mapping_code).toBe('processed');
+  });
+  it('preserves absent/null messaging metrics without manufacturing zero', async () => {
+    const s=await seed(); const p=s.payload();
+    for(const metrics of [{},{actions_onsite_conversion_messaging_conversation_started_7d:null},{messaging_actions:null,actions_onsite_conversion_messaging_conversation_started_7d:null}]) {
+      expect((await s.send(s.payload({rows:[{...p.rows[0],...metrics}],generated_at:`2026-01-0${2+Object.keys(metrics).length}T10:00:00Z`}))).mapping_code).toBe('processed');
+      expect((await s.db.query<{messaging_actions:number|null}>('select messaging_actions from meta_webhook_facts')).rows[0].messaging_actions).toBeNull();
+    }
+  });
   it('isolates accounts/levels, does not union sync facts; reports only explicitly selected level', async () => {
     const s=await seed();const p=s.payload();await s.send(p);
-    await s.send(s.payload({rows:[{...p.rows[0],account_id:'1114645597047575',spend:'20'}]}));
+    await s.send(s.payload({rows:[{...p.rows[0],account_id:'9000000000000002',spend:'20'}]}));
     await s.send(s.payload({level:'ad',rows:[{...p.rows[0],ad_id:'789',spend:'1234,50'}]}));
     expect(await s.facts()).toHaveLength(3);
     const r=await s.report();expect(r.rows).toHaveLength(2);

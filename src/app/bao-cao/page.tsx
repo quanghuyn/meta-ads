@@ -69,4 +69,4 @@ async function BaoCaoContent({ searchParams }: { searchParams: Promise<Record<st
   </main>;
 }
 
-export default function BaoCaoPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) { return <Suspense fallback={<p>?ang t?i b?o c?o?</p>}><BaoCaoContent {...props} /></Suspense>; }
+export default function BaoCaoPage(props: { searchParams: Promise<Record<string, string | string[] | undefined>> }) { return <Suspense fallback={<p>Đang tải báo cáo…</p>}><BaoCaoContent {...props} /></Suspense>; }

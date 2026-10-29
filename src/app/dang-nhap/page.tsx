@@ -34,4 +34,4 @@ async function LoginContent({ searchParams }: { searchParams: Promise<{ error?: 
   </main>;
 }
 
-export default function LoginPage(props: { searchParams: Promise<{ error?: string }> }) { return <Suspense fallback={<p>?ang t?i?</p>}><LoginContent {...props} /></Suspense>; }
+export default function LoginPage(props: { searchParams: Promise<{ error?: string }> }) { return <Suspense fallback={<p>Đang tải…</p>}><LoginContent {...props} /></Suspense>; }
