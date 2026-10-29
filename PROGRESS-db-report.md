@@ -42,3 +42,7 @@ STATUS: IN PROGRESS
 - Remaining blocker: auth.users still zero for owner email; opened Create user and handoff timed out. Do not retry without asking owner. Need human set password in Supabase UI, then grant admin/marketing membership ONLY to exact owner user+workspace, then handoff login at local report and verify account/day selection.
 - Pulse fd6dd5e9-fd77-47d1-8aa1-dcd20c630b4e remains active; state details .local/deployment-state.json.
 STATUS: BLOCKED: human account creation and authenticated browser acceptance pending
+
+## Owner pause
+Owner explicitly selected ??? sau? for password/account creation. Do not repeat login prompts, auto-create credentials, disable auth or mark browser acceptance complete. All remaining work is blocked on that human step. Resume only when owner is ready.
+STATUS: BLOCKED: owner deferred account creation
