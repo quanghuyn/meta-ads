@@ -46,3 +46,13 @@ STATUS: BLOCKED: human account creation and authenticated browser acceptance pen
 ## Owner pause
 Owner explicitly selected ??? sau? for password/account creation. Do not repeat login prompts, auto-create credentials, disable auth or mark browser acceptance complete. All remaining work is blocked on that human step. Resume only when owner is ready.
 STATUS: BLOCKED: owner deferred account creation
+
+## Authenticated browser acceptance 2026-10-29
+- Owner resumed and personally created huybo106@gmail.com through Dashboard handoff. Exact user verified; granted marketing membership only in existing workspace. No passwords collected or stored in repo/chat.
+- Owner personally signed into local report. Browser displayed authenticated DB report, correct UTF-8 and account dropdown with all three distinct IDs.
+- NK2 filter 2026-10-29: 14 campaign rows; spend 11373315 VND, impressions 83387, clicks 2865, snapshot 17:13:24 VN.
+- New NK3 3275227329354665 filter: 2 campaign rows; spend 1201957 (currency intentionally unverified), impressions 7609, clicks346. No account mixing.
+- Signed-out page was previously verified authentication_required with no data. Full auth/logout/session-expiry audit not claimed.
+- Current working URL http://127.0.0.1:3005/bao-cao . UI remains LOCAL, not public deployed or pushed. Data changes require reload/Xem bao cao, not live push streaming. Local server ends if process/app stops; restart with npm run start -- --hostname 127.0.0.1 --port 3005.
+- Meta-only scope complete. POS/Pancake/CIR and additional raw metrics integration remain future separate work; daily snapshot totals are received-row coverage, not guaranteed account completeness.
+STATUS: ALL DONE: Meta webhook DB to authenticated local report accepted
