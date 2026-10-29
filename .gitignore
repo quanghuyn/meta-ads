@@ -11,3 +11,6 @@ coverage
 .vercel
 .supabase
 tsconfig.tsbuildinfo
+
+# Private local webhook connection material
+.local/
