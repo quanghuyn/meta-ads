@@ -13,7 +13,7 @@ export function SpendSaleChart({ data, breakEven }: { data: TrendPoint[]; breakE
   return (
     <div role="img" aria-label="Biểu đồ chi tiêu, doanh thu và ROAS theo chiến dịch" className="h-80">
       <ResponsiveContainer>
-        <ComposedChart data={data} margin={{ top: 16, right: 8, left: 0, bottom: 8 }}>
+        <ComposedChart data={data.map(p => ({ ...p, spend: Number.isFinite(p.spend) ? p.spend : null, sale: Number.isFinite(p.sale) ? p.sale : null, roas: Number.isFinite(p.roas) ? p.roas : null }))} margin={{ top: 16, right: 8, left: 0, bottom: 8 }}>
           <CartesianGrid strokeDasharray="3 3" vertical={false} />
           <XAxis dataKey="name" tick={{ fontSize: 12 }} />
           <YAxis yAxisId="money" tickFormatter={(v) => (v >= 1e6 ? v / 1e6 + " Tr" : v / 1e3 + "K")} tick={{ fontSize: 12 }} />

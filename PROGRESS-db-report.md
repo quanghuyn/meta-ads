@@ -67,3 +67,11 @@ STATUS: ALL DONE: Meta webhook DB to authenticated local report accepted
 - Production works independently of the local3005 server. Refresh/submit filters for new DB snapshots. POS/Pancake/CIR remain explicitly unavailable on this screen.
 - docs/deployment.md documents environment priority, access, release and rollback.
 STATUS: ALL DONE: production report connected and authenticated browser verified
+
+## Owner correction: preserve original UX/UI
+Owner objected to replacing the original dashboard; requested only data updates. Restored original Dashboard component layout from01b82e0, with data props/context instead of static modules. Original KPI footprint, four chart/funnel areas,13 campaign columns, filters and daily table retained. No production push of these restoration changes yet.
+- Adapter maps only original NK2 and old NK3 fixed VND columns. New same-named account3275227329354665 stays separately excluded/labelled, not silently folded into NK3; currency still unverified.
+- POS/Pancake fields are unavailable (em dash/N/A), not zero/static placeholders or Meta messaging metrics. Their actual connection remains unfinished.
+- Full suite38 passed, lint/typecheck/build passed. Request-time connection guard fixes development prerender warning. Browser localhost3006 verified date presets, account filter, original headings/13 columns, noNaN/Infinity text. Private preview screenshot .local/restored-dashboard-preview.jpg.
+- Local dev preview http://127.0.0.1:3006/bao-cao ; no production changes made for restoration. Needs owner review before deploy.
+STATUS: BLOCKED: owner approval of original-layout restoration preview before production
