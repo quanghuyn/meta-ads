@@ -56,3 +56,14 @@ STATUS: BLOCKED: owner deferred account creation
 - Current working URL http://127.0.0.1:3005/bao-cao . UI remains LOCAL, not public deployed or pushed. Data changes require reload/Xem bao cao, not live push streaming. Local server ends if process/app stops; restart with npm run start -- --hostname 127.0.0.1 --port 3005.
 - Meta-only scope complete. POS/Pancake/CIR and additional raw metrics integration remain future separate work; daily snapshot totals are received-row coverage, not guaranteed account completeness.
 STATUS: ALL DONE: Meta webhook DB to authenticated local report accepted
+
+## Production Vercel rollout 2026-10-30
+- Owner approved production deployment to https://meta-ads-woad-five.vercel.app/bao-cao . Confirmed existing Vercel quanghuyns-projects/meta-ads linked to origin/main.
+- Pushed existing tested changes through68aac5d; deployment Ready. Login failed because integration-managed env targets another DB (ruljnheakefrxjillitb), not webhook DB. No credentials were reset.
+- Added production REPORT_SUPABASE_URL and REPORT_SUPABASE_PUBLISHABLE_KEY for actual webhook project. Preserved unrelated integration. Config now overrides atomically and fails closed for partial pair.
+- Fix commit3ff6dce pushed and Vercel deployment Ready. Regression tests4/4; full suite32/32, typecheck, lint and diff check pass.
+- Signed-out production returned authentication_required without report figures. Owner personally logged in successfully after DB config fix. Browser confirmed actual HTTPS production origin.
+- NK2 selected date2026-10-30: 11 campaign rows, spend4029373 VND, impressions31721, clicks1427; source snapshot2026-10-30T02:13:20.213798Z. Account dropdown separates3IDs; old NK3 also displayed real data. No static figures used. These are received coverage, not certified complete-account totals.
+- Production works independently of the local3005 server. Refresh/submit filters for new DB snapshots. POS/Pancake/CIR remain explicitly unavailable on this screen.
+- docs/deployment.md documents environment priority, access, release and rollback.
+STATUS: ALL DONE: production report connected and authenticated browser verified
