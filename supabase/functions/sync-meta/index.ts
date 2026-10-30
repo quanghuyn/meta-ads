@@ -104,6 +104,9 @@ async function insights(url: string, session: string | undefined, credential: st
   return acc.data;
 }
 
+const measure = (v: unknown) => v !== undefined && v !== null && v !== "" && Number.isFinite(Number(v)) && Number(v) >= 0;
+const hasMeasures = (r: Row) => measure(r.spend) && measure(r.impressions) && measure(r.clicks);
+
 function dates(days: number) {
   const todayVn = new Date(Date.now() + VN_OFFSET);
   return Array.from({ length: days }, (_, i) => new Date(todayVn.getTime() - i * 86400_000).toISOString().slice(0, 10)).reverse();
@@ -116,9 +119,13 @@ async function syncAccount(db: Db, url: string, session: string | undefined, acc
   const { data: conn } = await db.from("source_connections").select("id,workspace_id").eq("provider", "meta").eq("source_id", account).maybeSingle();
   if (!conn) throw new SourceError("NOT_CONFIGURED", `Chưa có kết nối meta ${account}`);
   let rows = 0;
+  let skipped = 0;
   const credential = await credentialFor(url, session, account);
   for (const date of days) {
-    const data = (await insights(url, session, credential, account, date)).filter((r) => r.campaign_id);
+    const all = (await insights(url, session, credential, account, date)).filter((r) => r.campaign_id);
+    // Thiếu hoặc sai số đo thì không ghi 0 thay thế: bỏ dòng đó và báo PARTIAL sau khi lưu các dòng hợp lệ.
+    const data = all.filter(hasMeasures);
+    skipped += all.length - data.length;
     if (data.length === 0) continue;
     const ents = await db.from("ad_entities").upsert(
       data.map((r) => ({ workspace_id: conn.workspace_id, connection_id: conn.id, kind: "campaign", source_id: r.campaign_id, name: r.campaign_name ?? null, source_status: r.status ?? null })),
@@ -127,12 +134,13 @@ async function syncAccount(db: Db, url: string, session: string | undefined, acc
     if (ents.error) throw new Error(`ad_entities: ${ents.error.message}`);
     const idOf = new Map((ents.data as { id: string; source_id: string }[]).map((e) => [e.source_id, e.id]));
     const ins = await db.from("ad_insights_daily").upsert(
-      data.map((r) => ({ workspace_id: conn.workspace_id, connection_id: conn.id, ad_entity_id: idOf.get(r.campaign_id!), source_date: date, query_profile_hash: PROFILE_HASH, spend: r.spend ?? "0", impressions: Number(r.impressions ?? 0), clicks_all: Number(r.clicks ?? 0), source_timezone: "Asia/Ho_Chi_Minh", currency: "VND", synced_at: new Date().toISOString() })),
+      data.map((r) => ({ workspace_id: conn.workspace_id, connection_id: conn.id, ad_entity_id: idOf.get(r.campaign_id!), source_date: date, query_profile_hash: PROFILE_HASH, spend: r.spend, impressions: Number(r.impressions), clicks_all: Number(r.clicks), source_timezone: "Asia/Ho_Chi_Minh", currency: "VND", synced_at: new Date().toISOString() })),
       { onConflict: "workspace_id,connection_id,ad_entity_id,source_date,query_profile_hash" },
     );
     if (ins.error) throw new Error(`ad_insights_daily: ${ins.error.message}`);
     rows += data.length;
   }
+  if (skipped > 0) throw new SourceError("PARTIAL", `${account}: ${skipped} dòng thiếu spend/impressions/clicks hợp lệ, đã bỏ qua; checkpoint không được ghi`);
   const now = new Date().toISOString();
   await db.from("sync_checkpoints").upsert({ workspace_id: conn.workspace_id, connection_id: conn.id, stream: "insights", completed_through: now, updated_at: now }, { onConflict: "workspace_id,connection_id,stream" });
   await db.from("source_connections").update({ last_success_at: now, state: "active" }).eq("id", conn.id);

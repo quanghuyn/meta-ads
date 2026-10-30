@@ -96,18 +96,21 @@ async function runPancake(db: Db, days: number) {
   const { since, until } = windowOf(days);
   let last: string | undefined;
   let total = 0;
+  let complete = false;
   for (let page = 0; page < 60; page++) {
     const q = new URLSearchParams({ type: "INBOX", since: String(since), until: String(until), order_by: "inserted_at", fields: "id,inserted_at,updated_at,has_phone,tags,ads,ad_ids", page_access_token: token });
     if (last) q.set("last_conversation_id", last);
     const body = await getJson(`https://pages.fm/api/public_api/v2/pages/${PAGE_ID}/conversations?${q}`, "pancake conversations");
     const list = body?.conversations;
     if (!Array.isArray(list)) throw new SchemaChanged("conversations[]");
+    // Kết thúc khi nguồn trả trang rỗng, không giả định kích thước trang.
+    if (list.length === 0) { complete = true; break; }
     const items = list.map((r: unknown) => normalizeConversation(r as never));
     await saveConversations(db, conn, items);
     total += items.length;
-    if (list.length < 60) break;
     last = items[items.length - 1].sourceId;
   }
+  if (!complete) throw new SourceError("PARTIAL", `pancake conversations còn trang sau ${total} hội thoại; checkpoint không được ghi`);
   await finish(db, conn, "conversations");
   return { conversations: total, since, until };
 }
@@ -134,6 +137,7 @@ async function runPos(db: Db, days: number) {
   let seen = 0;
   let total = 0;
   let totalEntries = 0;
+  let complete = false;
   for (let page = 1; page <= 100; page++) {
     const q = new URLSearchParams({ api_key: key, page_size: "100", page_number: String(page), update_status: "inserted_at", start_date_time: String(since), end_date_time: String(until) });
     const body = await getJson(`https://pos.pages.fm/api/v1/shops/${SHOP_ID}/orders?${q}`, "pos orders");
@@ -144,8 +148,9 @@ async function runPos(db: Db, days: number) {
     const items = mine.map((r: unknown) => normalizeOrder(r as never));
     await saveOrders(db, conn, items);
     total += items.length;
-    if (page >= Number(body.total_pages ?? 1)) break;
+    if (page >= Number(body.total_pages ?? 1)) { complete = true; break; }
   }
+  if (!complete) throw new SourceError("PARTIAL", `pos orders còn trang sau ${seen} đơn đã đọc; checkpoint không được ghi`);
   await finish(db, conn, "orders");
   return { orders: total, seen, totalEntries, since, until };
 }
