@@ -4,7 +4,7 @@ import { connection } from 'next/server';
 import { reportClient } from '@/lib/supabase-server';
 import { reportRange } from '@/lib/report';
 import { qualitySummary } from '@/lib/pancake-quality';
-import { campaignQualityData } from '@/lib/pancake-campaign-quality';
+import { webhookCampaignQualityData } from '@/lib/campaign-webhook-quality';
 import CampaignTable from './campaign-table';
 import { campaignSort } from '@/lib/campaign-quality-sort';
 export const metadata={title:'Chất lượng mess · Pancake'};
@@ -23,13 +23,13 @@ async function Content({searchParams}:{searchParams:Promise<Record<string,string
    const {data:members,error:memberError}=await db.from('memberships').select('workspace_id').eq('user_id',user.id).eq('active',true).in('role',['admin','marketing']);
    if(memberError||!members?.length)return {code:'forbidden',text:'Tài khoản chưa có quyền xem số liệu của workspace.'};
    if(members.length!==1)return {code:'workspace_selection_required',text:'Có nhiều workspace; chưa chọn được phạm vi an toàn nên không tự gộp.'};
-   const {data,error:rpcError}=await db.rpc('report_pancake_campaign_status_quality',{p_workspace_id:members[0].workspace_id,p_from:range.from,p_to:range.to});
+   const {data,error:rpcError}=await db.rpc('report_pancake_campaign_webhook_quality',{p_workspace_id:members[0].workspace_id,p_from:range.from,p_to:range.to});
    if(rpcError)return {code:'unavailable',text:'Chưa đọc được số liệu Pancake. Cần kiểm tra migration và nguồn đồng bộ; không coi đây là 0 hội thoại.'};
    return {raw:data};
   }catch{return {code:'unavailable',text:'Không kết nối được DB. Thử tải lại; không hiển thị số liệu giả hoặc số cũ thay thế.'};}
  };
  const result=await load();if('code' in result)return <State {...result}/>;
- const data=campaignQualityData(result.raw);if(!data)return <State code="invalid_response" text="Dữ liệu không đúng hợp đồng tổng hợp; chưa hiển thị để tránh tính sai."/>;
+ const data=webhookCampaignQualityData(result.raw);if(!data)return <State code="invalid_response" text="Dữ liệu không đúng hợp đồng tổng hợp; chưa hiển thị để tránh tính sai."/>;
  const expectedDays=Math.round((Date.parse(range.to)-Date.parse(range.from))/86400_000)+1;
  if(data.days.length!==expectedDays||data.days.some(d=>d.day<range.from||d.day>range.to))return <State code="incomplete_response" text="Khoảng ngày trả về thiếu hoặc sai phạm vi; chưa tính tổng."/>;
  const sort=campaignSort(query);
@@ -44,7 +44,7 @@ async function Content({searchParams}:{searchParams:Promise<Record<string,string
   {label:'Hội thoại bị loại',value:fmt(s.excluded),foot:`Không nằm trong mẫu số chính · ${fmt(s.unknown)} còn trạng thái eligibility chưa rõ`},
  ];
  return <main className="mx-auto min-h-screen max-w-7xl space-y-5 bg-slate-50 p-4 text-slate-900 sm:p-6">
-  <div role="note" className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-sm text-sky-900"><b>Pancake · Page {data.page_id}.</b> Đồng bộ nguồn: {stamp(data.synced_at)}. Chỉ là số liệu các hội thoại đã nhận, chưa chứng nhận đầy đủ. Nhãn là trạng thái hiện tại, không phải lịch sử tại thời điểm tạo hội thoại. {!data.source_configured&&<strong> Nguồn chưa được bật.</strong>}</div>
+  <div role="note" className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-sm text-sky-900"><b>Pancake · Page {data.page_id}.</b> Pancake cập nhật 6 giờ/lần. Đồng bộ nguồn: {stamp(data.synced_at)}. Meta cập nhật riêng qua webhook; chi tiêu/trạng thái có mốc nguồn riêng. Chỉ là số liệu các hội thoại đã nhận, chưa chứng nhận đầy đủ. Nhãn là trạng thái hiện tại, không phải lịch sử tại thời điểm tạo hội thoại. {!data.source_configured&&<strong> Nguồn chưa được bật.</strong>}</div>
   <header className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-xl font-bold">Chất lượng mess Pancake</h1><p className="text-xs text-slate-600">Tổng hợp theo ngày tạo hội thoại · Giờ Việt Nam · Không hiển thị SĐT/nội dung khách</p></div><Link href="/bao-cao" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Về báo cáo Ads</Link></header>
   <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Chọn khoảng thời gian">{presets.map(p=><Link key={p.label} href={`?from=${p.from}&to=${p.to}&sort=${sort.key}&direction=${sort.direction}`} className={`rounded-lg border px-3 py-1.5 text-sm ${range.from===p.from&&range.to===p.to?'border-blue-600 bg-blue-600 text-white':'border-slate-300 bg-white text-slate-800'}`}>{p.label}</Link>)}<form key={`${range.from}:${range.to}:${sort.key}:${sort.direction}`} method="get" className="flex flex-wrap items-center gap-2"><input type="hidden" name="sort" value={sort.key}/><input type="hidden" name="direction" value={sort.direction}/><label className="text-sm">Từ <input className="rounded-lg border border-slate-300 bg-white px-2 py-1" type="date" name="from" defaultValue={range.from} required/></label><label className="text-sm">đến <input className="rounded-lg border border-slate-300 bg-white px-2 py-1" type="date" name="to" defaultValue={range.to} required/></label><button className="rounded-lg bg-slate-900 px-3 py-1.5 text-sm text-white">Xem số liệu</button></form></div>
   <p className="text-xs text-slate-600">Đang xem {range.from} – {range.to}: {s.observedDays}/{data.days.length} ngày có bản ghi. Ngày không có bản ghi hiện —, không tự coi là không có khách.</p>

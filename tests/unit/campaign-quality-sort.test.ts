@@ -25,7 +25,7 @@ describe('quality table column sorting',()=>{
  });
  it('toggles active direction, chooses sensible first direction and whitelists query values',()=>{
   expect(campaignSort({})).toEqual({key:'conversations',direction:'desc'});expect(campaignSort({sort:'bogus',direction:'evil'})).toEqual({key:'conversations',direction:'desc'});
-  expect(nextCampaignSort({key:'conversations',direction:'desc'},'conversations')).toEqual({key:'conversations',direction:'asc'});expect(nextCampaignSort({key:'campaign',direction:'asc'},'phone_rate')).toEqual({key:'phone_rate',direction:'desc'});expect(campaignColumns).toHaveLength(11);
+  expect(nextCampaignSort({key:'conversations',direction:'desc'},'conversations')).toEqual({key:'conversations',direction:'asc'});expect(nextCampaignSort({key:'campaign',direction:'asc'},'phone_rate')).toEqual({key:'phone_rate',direction:'desc'});expect(campaignColumns).toHaveLength(12);
  });
  it('keeps date, account and applied search filters in safe local header links',()=>{
   const href=campaignSortHref({from:'2026-01-01',to:'2026-01-02',campaign:'A & B',account:'1492352028605038'},{key:'phone_rate',direction:'asc'});const u=new URL(href,'https://example.test/chat-luong-mess');
@@ -35,5 +35,9 @@ describe('quality table column sorting',()=>{
   const provenance={meta_effective_status:null,meta_status_at:'2026-01-02T00:00:00Z',meta_status_source:'legacy_metadata' as const};
   const a=row({...provenance,meta_status:'ACTIVE',campaign_id:'a'}),p=row({...provenance,meta_status:'PAUSED',campaign_id:'p'}),u=row({campaign_id:'u'});
   expect(sortCampaignQuality([u,p,a],{key:'status',direction:'asc'}).map(r=>r.campaign_id)).toEqual(['a','p','u']);expect(sortCampaignQuality([u,p,a],{key:'status',direction:'desc'}).map(r=>r.campaign_id)).toEqual(['p','a','u']);
+ });
+ it('sorts webhook spend numerically and keeps non-webhook/missing amounts last',()=>{
+  const a=row({campaign_id:'a',spend_source:'webhook',spend_received:100.5}),b=row({campaign_id:'b',spend_source:'webhook',spend_received:20.5}),u=row({campaign_id:'u',spend_received:999});
+  expect(sortCampaignQuality([u,a,b],{key:'spend',direction:'asc'}).map(r=>r.campaign_id)).toEqual(['b','a','u']);expect(sortCampaignQuality([u,b,a],{key:'spend',direction:'desc'}).map(r=>r.campaign_id)).toEqual(['a','b','u']);
  });
 });

@@ -1,6 +1,6 @@
 import { campaignBucketLabels, type CampaignQuality } from './pancake-campaign-quality';
 export const campaignColumns=[
- {key:'campaign',label:'Campaign / nhóm'}, {key:'account',label:'Tài khoản'}, {key:'status',label:'Trạng thái Meta'},
+ {key:'campaign',label:'Campaign / nhóm'}, {key:'account',label:'Tài khoản'}, {key:'status',label:'Trạng thái Meta'}, {key:'spend',label:'Chi tiêu Meta (đã nhận)'},
  {key:'conversations',label:'Hội thoại'}, {key:'with_phone',label:'Có SĐT'},
  {key:'phone_rate',label:'% SĐT'}, {key:'qualified',label:'Qualified'},
  {key:'qualified_rate',label:'% Qualified'}, {key:'duplicate',label:'Trùng khách'},
@@ -18,6 +18,7 @@ function value(c:CampaignQuality,key:CampaignSortKey):string|number|null{
  if(key==='campaign')return c.campaign_name??campaignBucketLabels[c.bucket];
  if(key==='account')return c.account_id?(campaignAccountNames[c.account_id]??c.account_id):null;
  if(key==='status')return c.meta_status_at&&c.meta_status_source?(c.meta_effective_status??c.meta_status??null):null;
+ if(key==='spend')return c.spend_source==='webhook'?c.spend_received??null:null;
  if(key==='phone_rate')return c.conversations>0?c.with_phone/c.conversations:null;
  if(key==='qualified_rate')return c.conversations>0?c.qualified/c.conversations:null;
  return c[key];

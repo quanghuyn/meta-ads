@@ -2,6 +2,7 @@ import {PGlite} from '@electric-sql/pglite';
 import {readdirSync,readFileSync} from 'node:fs';import{join}from'node:path';
 import{afterEach,describe,expect,it}from'vitest';
 import{campaignQualityData,type CampaignQualityData}from'../../src/lib/pancake-campaign-quality';
+import{webhookCampaignQualityData}from'../../src/lib/campaign-webhook-quality';
 const open:PGlite[]=[];afterEach(async()=>{for(const db of open.splice(0))await db.close()});
 async function seed(){const db=new PGlite();open.push(db);
  await db.exec(`create role anon nologin;create role authenticated nologin;create role service_role nologin bypassrls;create schema auth;create table auth.users(id uuid primary key default gen_random_uuid());create function auth.uid()returns uuid language sql stable as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;`);
@@ -40,6 +41,12 @@ async function meta(s:Fixture,account:string,campaign:string,ads:string[]){
 }
 async function touch(s:Fixture,cv:string,ad:string,key:string){await s.db.query(`insert into ad_touches(workspace_id,conversation_id,source_ad_id,observed_at,source_event_key)values($1,$2,$3,now(),$4)`,[s.w,cv,ad,key]);}
 async function campaigns(s:Fixture){return(await s.db.query<{result:CampaignQualityData}>(`select report_pancake_campaign_quality($1,'2026-01-01','2026-01-03') as result`,[s.w])).rows[0].result;}
+async function moneyRoute(s:Fixture,c:string,currency:string|null){await s.db.query(`update source_connections set currency=$2 where id=$1`,[c,currency]);await s.db.query(`insert into meta_webhook_routes(workspace_id,connection_id,report_level,enabled)values($1,$2,'campaign',true)`,[s.w,c]);}
+async function moneyFacts(s:Fixture){
+ const inbox=(await s.db.query<{id:string}>(`insert into meta_webhook_inbox(payload,payload_bytes)values('{"_test":true}',14)returning id`)).rows[0].id;await s.db.query(`insert into meta_webhook_deliveries(delivery_id,inbox_id,payload)values('unit-money',$1,'{}')`,[inbox]);
+ return async(c:string,id:string,day:string,amount:number|null,raw:Record<string,unknown>={},level:'campaign'|'ad'='campaign',parent:string|null=null)=>s.db.query(`insert into meta_webhook_facts(workspace_id,connection_id,level,entity_id,source_date,entity_name,campaign_id,spend,generated_at,delivery_id,inbox_id,raw_row)values($1,$2,$3::app.ad_entity_kind,$4,$5,'Synthetic source',$6,$7,'2026-01-04T00:00:00Z','unit-money',$8,$9::jsonb)`,[s.w,c,level,id,day,parent,amount,inbox,JSON.stringify(raw)]);
+}
+async function webhookMetrics(s:Fixture){const raw=(await s.db.query<{result:unknown}>(`select report_pancake_campaign_webhook_quality($1,'2026-01-01','2026-01-02') as result`,[s.w])).rows[0].result;const parsed=webhookCampaignQualityData(raw);expect(parsed).not.toBeNull();return parsed!;}
 describe('Pancake ad_id -> Meta campaign quality',()=>{
  it('deduplicates same-campaign touches, keeps accounts distinct, quarantines unknown/multiple campaigns and reconciles totals',async()=>{
   const s=await seed();await meta(s,'9101','311',['211','212']);await meta(s,'9102','311',['213']);
@@ -81,6 +88,23 @@ describe('Pancake ad_id -> Meta campaign quality',()=>{
   await s.db.query(`insert into meta_webhook_facts(workspace_id,connection_id,level,entity_id,source_date,entity_name,generated_at,delivery_id,inbox_id,raw_row)values($1,$2,'campaign','311','2026-01-02','Synthetic',now()+interval '1 minute','status-unit',$3,'{"status":"ACTIVE","effective_status":"PAUSED"}')`,[s.w,c,inbox]);const id=await s.conv('webhook-status',true);await touch(s,id,'211','status-touch');await s.login();
   const result=(await s.db.query<{result:CampaignQualityData}>(`select report_pancake_campaign_status_quality($1,'2026-01-01','2026-01-03') as result`,[s.w])).rows[0].result;
   expect(result.campaigns[0]).toMatchObject({meta_status:'ACTIVE',meta_effective_status:'PAUSED',meta_status_source:'webhook_snapshot'});expect(campaignQualityData(result)).not.toBeNull();
+ });
+ it('reads campaign spend once per day/account from webhook, not per conversation or child level, and never falls back to legacy status',async()=>{
+  const s=await seed();const c=await meta(s,'9101','311',['211','212']);const other=await meta(s,'9102','311',['213']);await moneyRoute(s,c,'VND');await moneyRoute(s,other,'USD');
+  await s.db.query(`update ad_entities set source_status='ACTIVE' where workspace_id=$1 and kind='campaign'`,[s.w]);const fact=await moneyFacts(s);
+  await fact(c,'311','2026-01-01',100);await fact(c,'311','2026-01-02',20);await fact(c,'211','2026-01-02',9999,{},'ad','311');await fact(other,'311','2026-01-02',777);
+  for(let i=0;i<3;i++){const cv=await s.conv(`money-${i}`,i===0);await touch(s,cv,'211',`money-touch-${i}`);if(i===0)await touch(s,cv,'212','second-ad');}await s.conv('money-no-ad',false);await s.login();
+  const result=await webhookMetrics(s);const row=result.campaigns.find(r=>r.bucket==='campaign')!;expect(row).toMatchObject({account_id:'9101',campaign_id:'311',conversations:3,spend_received:120,spend_days:2,spend_rows:2,spend_expected_days:2,spend_currency:'VND',spend_source:'webhook',spend_issue:null,meta_status:null,meta_status_source:null});expect(result.campaigns.find(r=>r.bucket==='no_ad_id')).toMatchObject({spend_received:null,spend_days:0,spend_expected_days:0,spend_source:null,spend_issue:'unassigned'});
+  await s.db.query(`select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false)`);await expect(s.db.query(`select report_pancake_campaign_webhook_quality($1,'2026-01-01','2026-01-02')`,[s.w])).rejects.toThrow('forbidden');
+ });
+ it('preserves null/zero/currency/coverage, accepts explicit webhook status and hides disabled routes',async()=>{
+  const s=await seed();const c=await meta(s,'9103','313',['215']);await moneyRoute(s,c,null);const fact=await moneyFacts(s);await fact(c,'313','2026-01-01',null,{status:'PAUSED'});const cv=await s.conv('nullable-money',true);await touch(s,cv,'215','nullable-money-touch');await s.login();
+  expect((await webhookMetrics(s)).campaigns[0]).toMatchObject({spend_received:null,spend_currency:null,spend_days:0,spend_rows:1,spend_expected_days:2,spend_issue:'missing_values',meta_status:'PAUSED',meta_status_source:'webhook_snapshot'});
+  await s.db.exec('reset role');await s.db.query(`update meta_webhook_facts set spend=0,generated_at=generated_at+interval '1 second' where connection_id=$1`,[c]);await s.login();expect((await webhookMetrics(s)).campaigns[0]).toMatchObject({spend_received:0,spend_days:1,spend_rows:1,spend_expected_days:2,spend_issue:null});
+  await s.db.exec('reset role');await s.db.query(`update meta_webhook_routes set enabled=false where connection_id=$1`,[c]);await s.login();expect((await webhookMetrics(s)).campaigns[0]).toMatchObject({spend_received:null,spend_currency:null,spend_source:null,spend_issue:'source_unavailable',meta_status:null,meta_status_source:null});
+ });
+ it('refuses ambiguous normalized account profiles rather than pooling their currencies or spend',async()=>{
+  const s=await seed();const c=await meta(s,'9101','311',['211']);const alias=await meta(s,'act_9101','312',['216']);await moneyRoute(s,c,'VND');await moneyRoute(s,alias,'USD');const cv=await s.conv('ambiguous-money',true);await touch(s,cv,'211','ambiguous-money-touch');await s.login();expect((await webhookMetrics(s)).campaigns[0]).toMatchObject({spend_received:null,spend_source:null,spend_issue:'ambiguous_account',meta_status:null});
  });
  it('inherits range, membership and anonymous protection from the base RPC',async()=>{
   const s=await seed();await s.login();await s.db.query(`select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false)`);await expect(campaigns(s)).rejects.toThrow('forbidden');await s.db.exec('set role anon');await expect(campaigns(s)).rejects.toThrow();

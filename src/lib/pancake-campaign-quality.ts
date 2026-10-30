@@ -1,7 +1,8 @@
 import{qualityData,qualitySummary,type QualityData}from'./pancake-quality';
 import{readCampaignMetaStatus,type CampaignMetaStatus}from'./campaign-meta-status';
+import type { CampaignSpend } from './campaign-webhook-quality';
 export type CampaignBucket='campaign'|'no_ad_id'|'unknown_ad'|'multi_campaign';
-export type CampaignQuality={bucket:CampaignBucket;account_id:string|null;campaign_id:string|null;campaign_name:string|null;conversations:number;with_phone:number;qualified:number;duplicate:number;no_need:number;closed_tag:number}&Partial<CampaignMetaStatus>;
+export type CampaignQuality={bucket:CampaignBucket;account_id:string|null;campaign_id:string|null;campaign_name:string|null;conversations:number;with_phone:number;qualified:number;duplicate:number;no_need:number;closed_tag:number}&Partial<CampaignMetaStatus>&Partial<CampaignSpend>;
 export type CampaignQualityData=QualityData&{campaigns:CampaignQuality[];attribution_model:'unique_all_touches_v1'};
 export const campaignBucketLabels:Record<CampaignBucket,string>={campaign:'Chiến dịch Meta',no_ad_id:'Chưa có ad_id trên Pancake',unknown_ad:'ad_id chưa xác định duy nhất trên Meta',multi_campaign:'Hội thoại có nhiều campaign'};
 const metricKeys=['conversations','with_phone','qualified','duplicate','no_need','closed_tag']as const;
