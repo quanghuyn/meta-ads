@@ -100,3 +100,16 @@ STATUS: BLOCKED: hourly POS configured; waiting owner direction on UI preview/de
 ## Approved production push 2026-10-30
 Owner explicitly approved deploy. Pushed dda1953 including originalUI+POS+hourlyschedule commits. GitHub public commit status confirms Vercel success (Deployment has completed) at03:50:28Z, deployment5yvU1GaGSBgK4gRmUyEubUxe3kyS. Public report HTTP200 and authentication_required as expected without cookies. Browser automation transport is currently timing out after gateway restart, including fresh Vercel tab; no production authenticated visual acceptance claimed yet. Need owner confirmation or browser recovery, not another push.
 STATUS: BLOCKED: deployed successfully; post-login production UI check pending browser recovery
+
+## Owner added Pancake quality page
+Owner approved a separate /chat-luong-mess page; preserve Ads dashboard UX/UI. Current TODO-42592172.md captures tasks. Need inspect actual Pancake tags/source freshness, secure aggregate-only RPC and tests, separate page using existing visual language, preview before deploy. No phone/message/health content or raw-conversation lists in page. Qualified=has_phone+current XTS/RLCD needs label; tags overlap. Do not infer response quality/message-count metrics absent data. Existing report restore+POS was deployed dda1953 Vercel success03:50:28Z, public HTTP200; authenticated production visual acceptance remains unverified due browser transport, do not falsely mark complete.
+STATUS: IN PROGRESS: separate Pancake quality page
+
+## Pancake quality local implementation ready
+- Added separate /chat-luong-mess server page with date presets/range,6aggregateKPIs,currenttag counts+non-exclusive bars,dailytable,scope/freshness/definitions. Ads dashboard files untouched this task.
+- New aggregateRPC migration20261030050000_pancake_quality.sql is LOCAL ONLY (NOT APPLIED LIVE). Securitydefiner checks membership, page+workspace scope, distinctcounts/current-source-tags, excludesrawcustomerfields and phone-like tag names, preserves missing-day null.
+- Local contracts/unit/DB/safe-login tests pass: full53tests14files, typecheck/lint/build pass. Newroute private no-store matcher and allowlisted safe login return.
+- LIVE BLOCKER: browser tools timeout; read-only CDP fallback connectedWS but context enumeration timedout too. HTTP endpoint9333 responds, not an authwall. Do not kill/restart gateway or keep retrying. Need owner reopen integrated browser, then capturefresh SQLquery, inspect live tags/freshness, apply testedRPC, preview with realdata and review before deploy.
+- SQL tabB2DFC3AC8E2DB1FC92D2715F53EA4E61 may be stale; old recorded auth expired. Do not extract tokens or guess privateAPI.
+- ExistingUI/POS deployeddda1953Vercelsuccess but stillpending actualproduction logged-invisualacceptance; no newpage deployment. Pulse813de818-7b0d-47bd-baee-fa022ed8faf1 tracks continuation.
+STATUS: BLOCKED: human browser recovery needed for live Pancake verification/migration/preview

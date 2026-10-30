@@ -1,0 +1,2 @@
+import{describe,it,expect}from'vitest';import{loginDestination}from'../../src/lib/login-destination';
+describe('safe login destination',()=>{it('allows only our protected quality page or original report',()=>{expect(loginDestination('/chat-luong-mess')).toBe('/chat-luong-mess');for(const s of [undefined,null,'https://evil.example','//evil.example','/chat-luong-mess?next=https://evil.example','/\\evil.example','/bao-cao'])expect(loginDestination(s)).toBe('/bao-cao');});});

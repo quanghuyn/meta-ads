@@ -22,4 +22,4 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ['/bao-cao/:path*', '/dang-nhap'] };
+export const config = { matcher: ['/bao-cao/:path*', '/chat-luong-mess/:path*', '/dang-nhap'] };
