@@ -1,7 +1,8 @@
 "use client";
 import { createContext, useContext, useMemo, useState } from "react";
 import { CIR_TARGET, compact as baseCompact, num as baseNum, pct as basePct, vnd as baseVnd } from "@/lib/format";
-import type { DashboardData, DashboardCampaign } from "@/lib/dashboard-data";
+import type { DashboardCampaign } from "@/lib/dashboard-data";
+import type { PosDashboardData as DashboardData } from "@/lib/pos-dashboard";
 import { ShareDonut, SpendSaleChart } from "./charts";
 
 const Data = createContext<DashboardData | null>(null);
@@ -104,7 +105,7 @@ function Contribution({ from, to }: { from: string; to: string }) {
   const total = sum(sold, (r) => r.sale);
   const withAds = rows.filter((r) => r.impressions > 0);
   return (
-    <Card title={`4. Cơ cấu đóng góp doanh thu và so sánh chỉ số kỹ thuật (${rangeLabel(from, to)})`} sub="Chưa nối doanh thu POS nên giữ ô đóng góp, chưa vẽ tỷ trọng. CTR/CPM/CPC dùng số liệu Meta nhận từ DB.">
+    <Card title={`4. Cơ cấu đóng góp doanh thu và so sánh chỉ số kỹ thuật (${rangeLabel(from, to)})`} sub="Tỷ trọng Total Sale POS đã gán theo ad_id; chưa gán giữ riêng. CTR/CPM/CPC dùng số liệu Meta nhận từ DB.">
       <div className="flex flex-wrap items-start gap-4">
         <div className="flex flex-col items-center">
           {sold.length ? <ShareDonut data={sold.map((r, i) => ({ name: r.name, value: r.sale, color: palette[i % palette.length] }))} /> : <div className="flex h-56 w-56 items-center justify-center text-xs text-slate-500">Chưa có dữ liệu Total Sale</div>}
@@ -156,7 +157,7 @@ function CirByCampaign({ from, to }: { from: string; to: string }) {
             <div key={r.id}>
               <div className="mb-0.5 flex justify-between gap-2 text-xs text-slate-900">
                 <span className="truncate" title={`${r.name} (${r.account})`}><span className="font-semibold">{r.name}</span> <span className="text-slate-500">{r.account.replace("Nam Khoa ", "NK")}</span></span>
-                <span className="whitespace-nowrap">{c === null ? `Chưa có dữ liệu đơn · chi ${compact(r.spend)}` : `${pct(c, 1)} · ${r.orders} đơn · chi ${compact(r.spend)}`}</span>
+                <span className="whitespace-nowrap">{c === null ? `${Number.isFinite(r.orders) ? "Chưa có đơn gán" : "Chưa có dữ liệu đơn"} · chi ${compact(r.spend)}` : `${pct(c, 1)} · ${r.orders} đơn · chi ${compact(r.spend)}`}</span>
               </div>
               <div className="relative h-4 rounded bg-slate-100">
                 <div className={`h-4 rounded ${c === null ? "bg-slate-400" : over ? "bg-red-500" : "bg-emerald-600"}`} style={{ width: `${c === null ? 100 : Math.min(c, 1) * 100}%` }} />
@@ -180,10 +181,9 @@ function CirByCampaign({ from, to }: { from: string; to: string }) {
 }
 
 function CampaignTable({ from, to }: { from: string; to: string }) {
-  const { campaignDaily } = useData();
+  const { campaignDaily, unattributedDaily } = useData();
   const campaignDayRows: { name: string; account: string; mess?: number; phones?: number; qualified?: number; dup?: number; koNhuCau?: number }[] = [];
   const campaignDayOther: { label: string; mess: number; phones: number; qualified: number; dup: number; koNhuCau: number }[] = [];
-  const unattributedDaily: { date: string; unmapped: {orders:number;sale:number};noAd:{orders:number;sale:number} }[] = [];
   const [account, setAccount] = useState("all");
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
@@ -213,7 +213,7 @@ function CampaignTable({ from, to }: { from: string; to: string }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-5">
       <h2 className="text-base font-bold">5. Đánh giá chi tiết theo chiến dịch Meta ({rangeLabel(from, to)})</h2>
-      <p className="mt-1 text-xs text-slate-600">Theo khoảng ngày đang chọn ở đầu trang. Doanh thu = đơn POS có ad_id thuộc chiến dịch. Qualified = nhãn XTS/RLCD + có SĐT. Cột Pancake/POS chưa nối sẽ hiện —; không dùng số liệu cũ thay thế.</p>
+      <p className="mt-1 text-xs text-slate-600">Theo khoảng ngày đang chọn ở đầu trang. Doanh thu = đơn POS có ad_id thuộc chiến dịch. Qualified = nhãn XTS/RLCD + có SĐT. Ô chưa có dữ liệu nguồn hiện —; không dùng số liệu cũ thay thế.</p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <input aria-label="Tìm tên chiến dịch" placeholder="Tìm tên chiến dịch" value={q} onChange={(e) => setQ(e.target.value)} className={sel} />
         <select aria-label="Lọc tài khoản" value={account} onChange={(e) => setAccount(e.target.value)} className={sel}>
@@ -241,7 +241,7 @@ function CampaignTable({ from, to }: { from: string; to: string }) {
             {rows.map((r) => (
               <tr key={r.id} className="border-b text-slate-900">
                 <td className="py-1">{r.name}</td><td>{r.account.replace("Nam Khoa ", "NK")}</td><td>{vnd(r.spend)}</td><td>{cpm(r)}</td><td>{ctr(r)}</td><td>{num(r.orders)}</td><td>{r.sale ? vnd(r.sale) : "—"}</td>
-                <td className={`font-semibold ${tone(r.spend > 0 ? r.cir : null)}`}>{r.spend === 0 ? "Không chi tiêu" : r.cir === null ? "Chưa có dữ liệu đơn" : pct(r.cir, 1) + (r.cir > CIR_TARGET ? " ▲" : " ✓")}</td>
+                <td className={`font-semibold ${tone(r.spend > 0 ? r.cir : null)}`}>{r.spend === 0 ? "Không chi tiêu" : r.cir === null ? (Number.isFinite(r.orders) ? "Chưa có đơn gán" : "Chưa có dữ liệu đơn") : pct(r.cir, 1) + (r.cir > CIR_TARGET ? " ▲" : " ✓")}</td>
                 <td>{cell(r.conv?.mess)}</td><td>{cell(r.conv?.phones)}</td><td>{cell(r.conv?.qualified)}</td><td>{cell(r.conv?.dup)}</td><td>{cell(r.conv?.koNhuCau)}</td>
               </tr>
             ))}
@@ -268,7 +268,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
 }
 
 function DashboardView() {
-  const { dayRows, first, last, asOf, snapshot, excludedAccounts } = useData();
+  const { dayRows, first, last, asOf, snapshot, excludedAccounts, posSyncedAt, posAvailable } = useData();
   const presets = makePresets(first, last);
   const [from, setFrom] = useState(shift(last, -6) < first ? first : shift(last, -6));
   const [to, setTo] = useState(last);
@@ -303,7 +303,7 @@ function DashboardView() {
   return (
     <main className="mx-auto min-h-screen max-w-7xl space-y-5 bg-slate-50 p-4 text-slate-900 sm:p-6">
       <div role="note" className="rounded-lg border border-sky-300 bg-sky-50 px-4 py-2 text-sm text-sky-900">
-        <b>Dữ liệu Supabase · {dm(asOf)}.</b> Chi tiêu: Meta NK2 + NK3 (1114645597047575), cấp chiến dịch. Snapshot {snapshot ? new Date(snapshot).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : "chưa có"}. Tải lại để lấy số mới; chỉ các dòng đã nhận. POS/Pancake chưa nối: hiển thị —, không phải 0. {excludedAccounts.length > 0 && <>Chưa gộp tài khoản ngoài hai cột gốc/chưa rõ tiền tệ: {excludedAccounts.join(", ")}.</>}
+        <b>Dữ liệu Supabase · {dm(asOf)}.</b> Chi tiêu: Meta NK2 + NK3 (1114645597047575), cấp chiến dịch. Snapshot {snapshot ? new Date(snapshot).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" }) : "chưa có"}. Tải lại để lấy số mới; chỉ các dòng đã nhận. POS shop 1546758: {posAvailable && posSyncedAt ? `đã nhận đến ${new Date(posSyncedAt).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}` : "chưa đọc được"}; số liệu hai nguồn khác thời điểm, CIR/ROAS tạm tính. Pancake chưa nối; — không phải 0. {excludedAccounts.length > 0 && <>Chưa gộp tài khoản ngoài hai cột gốc/chưa rõ tiền tệ: {excludedAccounts.join(", ")}.</>}
       </div>
 
       <header className="flex flex-wrap items-end justify-between gap-3">

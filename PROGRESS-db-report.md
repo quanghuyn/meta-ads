@@ -75,3 +75,17 @@ Owner objected to replacing the original dashboard; requested only data updates.
 - Full suite38 passed, lint/typecheck/build passed. Request-time connection guard fixes development prerender warning. Browser localhost3006 verified date presets, account filter, original headings/13 columns, noNaN/Infinity text. Private preview screenshot .local/restored-dashboard-preview.jpg.
 - Local dev preview http://127.0.0.1:3006/bao-cao ; no production changes made for restoration. Needs owner review before deploy.
 STATUS: BLOCKED: owner approval of original-layout restoration preview before production
+
+## Current POS extension (owner approved)
+Keep original UX/UI restored locally@7c4a3a2; do not deploy yet. Owner asked to add POS revenue before review. TODO-42592172.md is current checklist. Parent owns sequential edits (no workers). Verified live POS source1546758 active, sync_orders checkpoint2026-10-30T02:30:05Z. Latest included facts day30:2orders5939999VND, day29:21orders65399986. Need a secure aggregate-only POS RPC with freshness/unknown-day semantics, ad-ID attribution into original campaign rows (no proportional allocation), adapter updates+tests+preview, owner review before production. BrowserSQL B2DFC3AC8E2DB1FC92D2715F53EA4E61 captured request48816.768 may expire; only replay recorded requests, do not extract credentials. Local preview3006 sharp-cloud running. No more UI redesign.
+STATUS: IN PROGRESS: POS revenue adapter and aggregate RPC
+
+## POS integrated preview verification
+- Added and applied additive authenticated aggregate RPC20261030030000_pos_dashboard. No raw customer access expanded, no orders modified.
+- Live authenticated RPC: day29 21orders65399986,18ad orders55419989 +3no-ad9979997; day30 latest at10:00:05VN3orders9699998,2ad7039999 +1no-ad2659999; buckets reconcile exactly.
+- Original UI binds POS shop metrics, per-campaign exact-ad attribution and unassigned buckets. Missing/POS-only Meta remains unknown rather than zero. Pancake columns remain unconnected, never substituted with Meta actions.
+- Full46tests passed, typecheck/lint/diff check green; production build passed. Production-style local server3007 fast-sable running; browser authenticated, original KPI/table/chart layout observed. HIDDEN BROWSER PANEL had viewport0 and real clicks no-op: resize1280x950 fixed controls, not a UI code bug.
+- Browser Hoomnay day30: shop9699998 and3orders; Hoomqua day29 shop65399986 and21orders, CIR46.00%,ROAS2.17 for observed Meta spend30084540. UI table13original columns maintained. NoNaN/Infinity rendered. Screenshot .local/meta-pos-ui-preview.jpg.
+- Broader7day range intentionally shows incomplete Meta totals unknown, rather than implying absent older snapshots are0. Same-named third account still not merged into fixed VND columns.
+- No production push/deploy of restore or POS changes. Need owner review before production. Pulse813de818-7b0d-47bd-baee-fa022ed8faf1 remains until reviewed.
+STATUS: BLOCKED: owner review of original UI plus POS preview
