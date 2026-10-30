@@ -89,3 +89,10 @@ STATUS: IN PROGRESS: POS revenue adapter and aggregate RPC
 - Broader7day range intentionally shows incomplete Meta totals unknown, rather than implying absent older snapshots are0. Same-named third account still not merged into fixed VND columns.
 - No production push/deploy of restore or POS changes. Need owner review before production. Pulse813de818-7b0d-47bd-baee-fa022ed8faf1 remains until reviewed.
 STATUS: BLOCKED: owner review of original UI plus POS preview
+
+## POS hourly schedule (owner requested)
+- Verified live pg_cron4jobs. Changed existing sync-pos jobid1 from0,30 * * * * to0 * * * * (active). Preserved existing command; no duplicate POS job.
+- Other live schedules unchanged: sync-pancake5,35; sync-meta-nk210,40; sync-meta-nk315,45.
+- Saved additive migration20261030040000_schedule_sync_pos_hourly.sql. This is already applied on DB; do not run the old30minute schedule after it.
+- Report still refresh-on-load/filter, not background auto-refresh. UI restore+POS remains local preview3007 and not pushed; owner has not yet approved deploy.
+STATUS: BLOCKED: hourly POS configured; waiting owner direction on UI preview/deployment
