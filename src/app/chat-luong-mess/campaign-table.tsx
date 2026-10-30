@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { campaignStatusView } from '@/lib/campaign-meta-status';
 import { campaignBucketLabels, type CampaignQualityData } from '@/lib/pancake-campaign-quality';
 import { campaignColumns, campaignSort, sortCampaignQuality, nextCampaignSort, campaignSortHref, campaignAccountNames as accounts } from '@/lib/campaign-quality-sort';
 const count=(n:number)=>n.toLocaleString('vi-VN');
@@ -24,21 +25,22 @@ export default function CampaignTable({data,from,to,query}:{data:CampaignQuality
    <button className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm">Lọc campaign</button>
   </form>
   <div className="mt-4 overflow-x-auto">
-   <table className="w-full min-w-[1000px] text-left text-xs">
+   <table className="w-full min-w-[1180px] text-left text-xs">
     <thead><tr className="border-b text-slate-600">{campaignColumns.map(c=>{
      const next=nextCampaignSort(sort,c.key);const active=sort.key===c.key;
      const label=`Sắp xếp ${c.label} ${next.direction==='asc'?'tăng dần':'giảm dần'}`;
      return <th key={c.key} scope="col" aria-sort={active?(sort.direction==='asc'?'ascending':'descending'):'none'} className="whitespace-nowrap py-2 pr-3"><Link href={campaignSortHref({from,to,campaign:search,account},next)} title={label} aria-label={label} className="inline-flex items-center gap-1 rounded-sm text-inherit underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-blue-600">{c.label}<span aria-hidden="true" className={active?'text-blue-700':'text-slate-400'}>{active?(sort.direction==='asc'?'↑':'↓'):'↕'}</span></Link></th>;
     })}</tr></thead>
-    <tbody>{rows.map(c=><tr key={`${c.bucket}:${c.account_id}:${c.campaign_id}`} className={`border-b ${c.bucket!=='campaign'?'bg-slate-50':''}`}>
+    <tbody>{rows.map(c=>{const status=campaignStatusView(c);return <tr key={`${c.bucket}:${c.account_id}:${c.campaign_id}`} className={`border-b ${c.bucket!=='campaign'?'bg-slate-50':''}`}>
      <td className="max-w-64 py-3 pr-3"><div className="font-medium">{c.bucket==='campaign'?c.campaign_name:campaignBucketLabels[c.bucket]}</div>{c.campaign_id&&<div className="mt-1 text-[10px] text-slate-500">{c.campaign_id}</div>}</td>
      <td className="pr-3">{c.account_id?<><div>{accounts[c.account_id]??'TKQC'}</div><div className="mt-1 text-[10px] text-slate-500">{c.account_id}</div></>:'—'}</td>
+     <td className="min-w-[170px] py-2 pr-3">{c.bucket==='campaign'?<div title={status.title}><span className={`inline-block rounded border px-2 py-1 text-[11px] ${status.tone}`}>{status.label}</span><div className="mt-1 text-[10px] text-slate-600">{status.note}</div>{status.when&&<time dateTime={c.meta_status_at??undefined} className="text-[10px] text-slate-500">{status.when}</time>}</div>:'—'}</td>
      <td>{count(c.conversations)}</td><td>{count(c.with_phone)}</td><td>{percent(c.with_phone,c.conversations)}</td><td>{count(c.qualified)}</td><td>{percent(c.qualified,c.conversations)}</td><td>{count(c.duplicate)}</td><td>{count(c.no_need)}</td><td>{count(c.closed_tag)}</td>
-    </tr>)}</tbody>
-    <tfoot><tr className="border-t-2 font-semibold"><td colSpan={2} className="py-3">Tổng bảng đang lọc</td><td>{count(total.conversations)}</td><td>{count(total.with_phone)}</td><td>{percent(total.with_phone,total.conversations)}</td><td>{count(total.qualified)}</td><td>{percent(total.qualified,total.conversations)}</td><td>{count(total.duplicate)}</td><td>{count(total.no_need)}</td><td>{count(total.closed_tag)}</td></tr></tfoot>
+    </tr>})}</tbody>
+    <tfoot><tr className="border-t-2 font-semibold"><td colSpan={3} className="py-3">Tổng bảng đang lọc</td><td>{count(total.conversations)}</td><td>{count(total.with_phone)}</td><td>{percent(total.with_phone,total.conversations)}</td><td>{count(total.qualified)}</td><td>{percent(total.qualified,total.conversations)}</td><td>{count(total.duplicate)}</td><td>{count(total.no_need)}</td><td>{count(total.closed_tag)}</td></tr></tfoot>
    </table>
    {!rows.length&&<p className="py-3 text-xs text-slate-600">Không có campaign/nhóm khớp bộ lọc trong các hội thoại đã nhận.</p>}
   </div>
-  <p className="mt-3 text-xs text-slate-600">% SĐT = hội thoại có SĐT / hội thoại của dòng; % Qualified cũng dùng hội thoại của dòng. Các nhãn có thể chồng nhau; “Chốt đơn” không phải đơn/doanh số POS. Nhóm chưa gán không được phân bổ theo chi tiêu.</p>
+  <p className="mt-3 text-xs text-slate-600">% SĐT = hội thoại có SĐT / hội thoại của dòng; % Qualified cũng dùng hội thoại của dòng. Các nhãn có thể chồng nhau; “Chốt đơn” không phải đơn/doanh số POS. Nhóm chưa gán không được phân bổ theo chi tiêu. Trạng thái Meta là ảnh metadata kèm thời điểm, không bảo đảm đang phân phối; ảnh quá 24 giờ được cảnh báo.</p>
  </section>;
 }

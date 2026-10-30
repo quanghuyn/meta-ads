@@ -16,4 +16,9 @@ describe('campaign quality contract',()=>{
  it('checks no-ad totals against received ad-touch coverage',()=>{
   const b={...base(),campaigns:[{...row,bucket:'no_ad_id',account_id:null,campaign_id:null,campaign_name:null}]};expect(campaignQualityData(b)).toBeNull();b.days[0].with_ad=0;expect(campaignQualityData(b)).not.toBeNull();
  });
+ it('validates status provenance and rejects assigning a Meta state to unassigned buckets',()=>{
+  const a=base();a.campaigns=[{...a.campaigns[0],meta_status:'ACTIVE',meta_effective_status:null,meta_status_at:'2026-01-02T00:00:00Z',meta_status_source:'legacy_metadata'}];expect(campaignQualityData(a)?.campaigns[0].meta_status).toBe('ACTIVE');
+  const partial={...base(),campaigns:[{...row,meta_status:'ACTIVE'}]};expect(campaignQualityData(partial)).toBeNull();
+  const invalid={...a,campaigns:[{...a.campaigns[0],bucket:'unknown_ad',account_id:null,campaign_id:null,campaign_name:null}]};expect(campaignQualityData(invalid)).toBeNull();
+ });
 });

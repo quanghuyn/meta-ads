@@ -1,6 +1,6 @@
 import { campaignBucketLabels, type CampaignQuality } from './pancake-campaign-quality';
 export const campaignColumns=[
- {key:'campaign',label:'Campaign / nhóm'}, {key:'account',label:'Tài khoản'},
+ {key:'campaign',label:'Campaign / nhóm'}, {key:'account',label:'Tài khoản'}, {key:'status',label:'Trạng thái Meta'},
  {key:'conversations',label:'Hội thoại'}, {key:'with_phone',label:'Có SĐT'},
  {key:'phone_rate',label:'% SĐT'}, {key:'qualified',label:'Qualified'},
  {key:'qualified_rate',label:'% Qualified'}, {key:'duplicate',label:'Trùng khách'},
@@ -17,6 +17,7 @@ export function campaignSort(query:Record<string,unknown>):CampaignSort{
 function value(c:CampaignQuality,key:CampaignSortKey):string|number|null{
  if(key==='campaign')return c.campaign_name??campaignBucketLabels[c.bucket];
  if(key==='account')return c.account_id?(campaignAccountNames[c.account_id]??c.account_id):null;
+ if(key==='status')return c.meta_status_at&&c.meta_status_source?(c.meta_effective_status??c.meta_status??null):null;
  if(key==='phone_rate')return c.conversations>0?c.with_phone/c.conversations:null;
  if(key==='qualified_rate')return c.conversations>0?c.qualified/c.conversations:null;
  return c[key];
@@ -33,7 +34,7 @@ export function sortCampaignQuality(rows:readonly CampaignQuality[],sort:Campaig
  });
 }
 export function nextCampaignSort(current:CampaignSort,key:CampaignSortKey):CampaignSort{
- return{key,direction:current.key===key?(current.direction==='asc'?'desc':'asc'):(key==='campaign'||key==='account'?'asc':'desc')};
+ return{key,direction:current.key===key?(current.direction==='asc'?'desc':'asc'):(key==='campaign'||key==='account'||key==='status'?'asc':'desc')};
 }
 export function campaignSortHref(filters:{from:string;to:string;campaign:string;account:string},next:CampaignSort){
  const params=new URLSearchParams({from:filters.from,to:filters.to,campaign:filters.campaign,account:filters.account,sort:next.key,direction:next.direction});

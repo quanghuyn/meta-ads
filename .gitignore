@@ -14,3 +14,6 @@ tsconfig.tsbuildinfo
 
 # Private local webhook connection material
 .local/
+
+# Agent operational ledger stays local; may contain private reconciliation data.
+PROGRESS-db-report.md

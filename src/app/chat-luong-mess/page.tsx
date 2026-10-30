@@ -23,7 +23,7 @@ async function Content({searchParams}:{searchParams:Promise<Record<string,string
    const {data:members,error:memberError}=await db.from('memberships').select('workspace_id').eq('user_id',user.id).eq('active',true).in('role',['admin','marketing']);
    if(memberError||!members?.length)return {code:'forbidden',text:'Tài khoản chưa có quyền xem số liệu của workspace.'};
    if(members.length!==1)return {code:'workspace_selection_required',text:'Có nhiều workspace; chưa chọn được phạm vi an toàn nên không tự gộp.'};
-   const {data,error:rpcError}=await db.rpc('report_pancake_campaign_quality',{p_workspace_id:members[0].workspace_id,p_from:range.from,p_to:range.to});
+   const {data,error:rpcError}=await db.rpc('report_pancake_campaign_status_quality',{p_workspace_id:members[0].workspace_id,p_from:range.from,p_to:range.to});
    if(rpcError)return {code:'unavailable',text:'Chưa đọc được số liệu Pancake. Cần kiểm tra migration và nguồn đồng bộ; không coi đây là 0 hội thoại.'};
    return {raw:data};
   }catch{return {code:'unavailable',text:'Không kết nối được DB. Thử tải lại; không hiển thị số liệu giả hoặc số cũ thay thế.'};}

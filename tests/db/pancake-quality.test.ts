@@ -65,6 +65,23 @@ describe('Pancake ad_id -> Meta campaign quality',()=>{
   const a=await s.conv('conflict',false);await touch(s,a,'211','conflict');const b=await s.conv('quoted',true);await touch(s,b,"'214",'quoted');await s.login();const r=(await campaigns(s)).campaigns;
   expect(r.find(c=>c.bucket==='unknown_ad')?.conversations).toBe(1);expect(r.find(c=>c.bucket==='campaign')).toMatchObject({account_id:'9102',campaign_id:'312',campaign_name:'A webhook campaign',conversations:1});
  });
+ it('enriches status by exact account/campaign without changing conversation totals; missing/groups stay unknown',async()=>{
+  const s=await seed();await meta(s,'9101','311',['211']);await meta(s,'9102','311',['212']);await meta(s,'9103','313',['213']);
+  await s.db.query(`update ad_entities e set source_status=case c.source_id when '9101' then 'ACTIVE' when '9102' then 'PAUSED' end from source_connections c where c.id=e.connection_id and c.workspace_id=e.workspace_id and e.workspace_id=$1 and e.kind='campaign'`,[s.w]);
+  for(const[cv,ad]of[['one','211'],['two','212'],['missing','213']]){const id=await s.conv(cv,true);await touch(s,id,ad,cv);}await s.conv('no-status-group',false);await s.login();
+  const before=await campaigns(s);const result=(await s.db.query<{result:CampaignQualityData}>(`select report_pancake_campaign_status_quality($1,'2026-01-01','2026-01-03') as result`,[s.w])).rows[0].result;
+  expect(campaignQualityData(result)).not.toBeNull();expect(result.campaigns).toHaveLength(before.campaigns.length);result.campaigns.forEach((r,i)=>expect(r).toMatchObject(before.campaigns[i]));
+  expect(result.campaigns.find(r=>r.account_id==='9101')).toMatchObject({meta_status:'ACTIVE',meta_effective_status:null,meta_status_source:'legacy_metadata'});expect(result.campaigns.find(r=>r.account_id==='9102')?.meta_status).toBe('PAUSED');
+  expect(result.campaigns.find(r=>r.account_id==='9103')).toMatchObject({meta_status:null,meta_effective_status:null,meta_status_at:null,meta_status_source:null});expect(result.campaigns.find(r=>r.bucket==='no_ad_id')?.meta_status).toBeNull();
+  await s.db.query(`select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false)`);await expect(s.db.query(`select report_pancake_campaign_status_quality($1,'2026-01-01','2026-01-03')`,[s.w])).rejects.toThrow('forbidden');
+ });
+ it('preserves configured/effective state from one newer webhook snapshot, rather than blending metadata sources',async()=>{
+  const s=await seed();const c=await meta(s,'9101','311',['211']);await s.db.query(`update ad_entities set source_status='PAUSED' where workspace_id=$1 and kind='campaign'`,[s.w]);
+  const inbox=(await s.db.query<{id:string}>(`insert into meta_webhook_inbox(payload,payload_bytes)values('{"_test":true}',14)returning id`)).rows[0].id;await s.db.query(`insert into meta_webhook_deliveries(delivery_id,inbox_id,payload)values('status-unit',$1,'{}')`,[inbox]);
+  await s.db.query(`insert into meta_webhook_facts(workspace_id,connection_id,level,entity_id,source_date,entity_name,generated_at,delivery_id,inbox_id,raw_row)values($1,$2,'campaign','311','2026-01-02','Synthetic',now()+interval '1 minute','status-unit',$3,'{"status":"ACTIVE","effective_status":"PAUSED"}')`,[s.w,c,inbox]);const id=await s.conv('webhook-status',true);await touch(s,id,'211','status-touch');await s.login();
+  const result=(await s.db.query<{result:CampaignQualityData}>(`select report_pancake_campaign_status_quality($1,'2026-01-01','2026-01-03') as result`,[s.w])).rows[0].result;
+  expect(result.campaigns[0]).toMatchObject({meta_status:'ACTIVE',meta_effective_status:'PAUSED',meta_status_source:'webhook_snapshot'});expect(campaignQualityData(result)).not.toBeNull();
+ });
  it('inherits range, membership and anonymous protection from the base RPC',async()=>{
   const s=await seed();await s.login();await s.db.query(`select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false)`);await expect(campaigns(s)).rejects.toThrow('forbidden');await s.db.exec('set role anon');await expect(campaigns(s)).rejects.toThrow();
  });
