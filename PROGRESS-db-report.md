@@ -140,3 +140,16 @@ STATUS: IN PROGRESS: final UI form-state reset verification and preview
 - Private final image.local/pancake-campaign-preview.jpg (old pre-fix screenshot superseded). RPC filters/permissions tested; unsigned requests still private no-store/no data. No rawcustomerdata or messagecontents introduced.
 - Localpage changes NOT pushed/deployed; ownerreviewbeforedeploy. Need release SQL tab5D4077BC6C29084242468746A2B7D879 keepAlive pin after work; previewtab125828B14277C437B853F1E8BE519829. Pulse813de818-7b0d-47bd-baee-fa022ed8faf1 for approval followthrough.
 STATUS: BLOCKED: owner approval of campaign-quality preview before deploying new page
+
+## Owner approved per-column sorting16:49
+- New task: sortable headers on qualitycampaign table, preserve originalAdsUI and data/attribution. Existing baseline2d4d98c found (syncworkerchanges), not authored or reverted in this task. No deployment approval.
+- Added pure whitelisted sort helper, numeric rates (not percentstrings), missingvalueslast, naturaltext/accountlabels, stableIDs/ties, immutablecopysort.6newunit tests pass. Header links preserve applied date/search/account; filterforms carry sort/direction; date controls preserve sort. No RPC/DBchange.
+- Building/retesting before freshproductionlocalpreview; existing3009calm-basil may need restart afterbuild. Need verify realcolumnclick/aria-sort, increasing/decreasingnumeric and filters/subtotals unchanged.
+STATUS: IN PROGRESS: sortable column browser verification
+
+## Sortable quality headers verified
+- Added whitelisted sort/query helper with all10headerlinks/arrows/aria-sort. Numeric ratios and counts, missinglast, naturaltext/accountnames, deterministic IDties; no mutation of source/grouping.
+- Full66tests16files,typecheck/lint/build pass. Browser3009 restarted asrapid-wharf, authenticated. NK2 phoneRate desc100,80,75,66.7,...0 thenasc0,20,20,25,...100; footer43conv20phones11qualified unchanged bothdirections, date/accountpreserved.
+- Applied campaignsearch cd +NK2 keeps phoneRateasc; changingto qualifiedRate desc returns50,25,0,0 andsamefiltered subtotal13conv7phones3qualified. Datepreset Hoomqua retains qualifiedRate desc andupdatesdatefields29Oct. Screenshot.local/pancake-sort-preview.png.
+- No SQL/RPCorAdsUIchanges. Baseline2d4d98c syncworkerchanges preserved, not authored/reverted here. Newsortandqualitypage stillNOTpushed/deployed.
+STATUS: BLOCKED: sorted preview ready, waiting owner deploy approval
