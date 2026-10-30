@@ -1,6 +1,6 @@
-// Worker đồng bộ chỉ-đọc: Pancake Chat (hội thoại) và Pancake POS (đơn) vào Supabase.
-// Gọi: POST /functions/v1/sync?job=pancake|pos&days=2 với header x-worker-secret.
-// Secrets: WORKER_TRIGGER_SECRET, PANCAKE_PAGE_TOKEN, POS_API_KEY (SUPABASE_URL và SERVICE_ROLE_KEY có sẵn).
+// Worker dong bo chi-doc: Pancake Chat (hoi thoai) va Pancake POS (don) vao Supabase.
+// Goi: POST /functions/v1/sync?job=pancake|pos&days=2&offset=0 voi header x-worker-secret hoac x-cron-token.
+// Secrets: WORKER_TRIGGER_SECRET, PANCAKE_PAGE_TOKEN, POS_API_KEY (SUPABASE_URL va SERVICE_ROLE_KEY co san).
 import { createClient } from "jsr:@supabase/supabase-js@2";
 import { normalizeConversation, SchemaChanged, type NormalizedConversation } from "../_shared/domain/pancake-conversation.ts";
 import { normalizeOrder, type NormalizedOrder } from "../_shared/domain/pos-order.ts";
@@ -19,8 +19,8 @@ function safeEqual(a: string, b: string) {
   return d === 0;
 }
 
-// Chấp nhận secret của người vận hành hoặc token do database sinh (lịch pg_cron).
-async function authorized(req: Request, db: { rpc: (f: string, a: unknown) => PromiseLike<{ data: unknown }> }) {
+// deno-lint-ignore no-explicit-any
+async function authorized(req: Request, db: any) {
   const secret = Deno.env.get("WORKER_TRIGGER_SECRET");
   const given = req.headers.get("x-worker-secret");
   if (secret && given && safeEqual(given, secret)) return true;
@@ -34,7 +34,7 @@ class SourceError extends Error {
   constructor(readonly code: string, msg: string) { super(msg); }
 }
 
-// URL có token trong query nên không bao giờ đưa URL vào log hay thông báo lỗi.
+// URL co token trong query nen khong bao gio dua URL vao log hay thong bao loi.
 async function getJson(url: string, label: string) {
   const res = await fetch(url);
   if (res.status === 401 || res.status === 403) throw new SourceError("AUTH_EXPIRED", `${label}: ${res.status}`);
@@ -43,17 +43,20 @@ async function getJson(url: string, label: string) {
   return await res.json();
 }
 
-function windowOf(days: number) {
+// offset > 0 lui cua so ve qua khu (lay lai tung doan ngay cu), until = het ngay cuoi cua cua so.
+function windowOf(days: number, offset = 0) {
   const now = Math.floor(Date.now() / 1000);
   const todayVn = Math.floor((now + VN_OFFSET) / 86400) * 86400 - VN_OFFSET;
-  return { since: todayVn - (days - 1) * 86400, until: now };
+  const endDay = todayVn - offset * 86400;
+  return { since: endDay - (days - 1) * 86400, until: Math.min(now, endDay + 86400 - 1) };
 }
 
-type Db = ReturnType<typeof createClient>;
+// deno-lint-ignore no-explicit-any
+type Db = any;
 
 async function connection(db: Db, provider: string, sourceId: string) {
   const { data, error } = await db.from("source_connections").select("id,workspace_id").eq("provider", provider).eq("source_id", sourceId).maybeSingle();
-  if (error || !data) throw new SourceError("NOT_CONFIGURED", `Chưa có kết nối ${provider} ${sourceId} trong source_connections`);
+  if (error || !data) throw new SourceError("NOT_CONFIGURED", `Chua co ket noi ${provider} ${sourceId} trong source_connections`);
   return data as { id: string; workspace_id: string };
 }
 
@@ -74,7 +77,6 @@ async function saveConversations(db: Db, conn: { id: string; workspace_id: strin
   const idOf = new Map((data as { id: string; source_id: string }[]).map((r) => [r.source_id, r.id]));
   const ids = [...idOf.values()];
 
-  // Nhãn là ảnh chụp hiện tại: thay toàn bộ nhãn nguồn của các hội thoại trong lô.
   const del = await db.from("conversation_evidence").delete().in("conversation_id", ids).eq("kind", "tag").eq("origin", "source");
   if (del.error) throw new Error(`evidence delete: ${del.error.message}`);
   const evidence = items.flatMap((c) => c.tags.map((t) => ({ workspace_id: conn.workspace_id, conversation_id: idOf.get(c.sourceId)!, kind: "tag", dedupe_key: `tag:${t}`, value: { text: t }, observed_at: observed })));
@@ -89,11 +91,11 @@ async function saveConversations(db: Db, conn: { id: string; workspace_id: strin
   }
 }
 
-async function runPancake(db: Db, days: number) {
+async function runPancake(db: Db, days: number, offset: number) {
   const token = Deno.env.get("PANCAKE_PAGE_TOKEN");
-  if (!token) throw new SourceError("NOT_CONFIGURED", "Thiếu secret PANCAKE_PAGE_TOKEN");
+  if (!token) throw new SourceError("NOT_CONFIGURED", "Thieu secret PANCAKE_PAGE_TOKEN");
   const conn = await connection(db, "inbox", PAGE_ID);
-  const { since, until } = windowOf(days);
+  const { since, until } = windowOf(days, offset);
   let last: string | undefined;
   let total = 0;
   let complete = false;
@@ -103,14 +105,14 @@ async function runPancake(db: Db, days: number) {
     const body = await getJson(`https://pages.fm/api/public_api/v2/pages/${PAGE_ID}/conversations?${q}`, "pancake conversations");
     const list = body?.conversations;
     if (!Array.isArray(list)) throw new SchemaChanged("conversations[]");
-    // Kết thúc khi nguồn trả trang rỗng, không giả định kích thước trang.
+    // Ket thuc khi nguon tra trang rong, khong gia dinh kich thuoc trang.
     if (list.length === 0) { complete = true; break; }
     const items = list.map((r: unknown) => normalizeConversation(r as never));
     await saveConversations(db, conn, items);
     total += items.length;
     last = items[items.length - 1].sourceId;
   }
-  if (!complete) throw new SourceError("PARTIAL", `pancake conversations còn trang sau ${total} hội thoại; checkpoint không được ghi`);
+  if (!complete) throw new SourceError("PARTIAL", `pancake conversations con trang sau ${total} hoi thoai; checkpoint khong duoc ghi`);
   await finish(db, conn, "conversations");
   return { conversations: total, since, until };
 }
@@ -123,36 +125,45 @@ async function saveOrders(db: Db, conn: { id: string; workspace_id: string }, it
   ).select("id,source_id");
   if (error) throw new Error(`orders: ${error.message}`);
   const idOf = new Map((data as { id: string; source_id: string }[]).map((r) => [r.source_id, r.id]));
-  const facts = items.map((o) => ({ workspace_id: conn.workspace_id, order_id: idOf.get(o.sourceId)!, contract_version: CONTRACT_VERSION, source_fact_key: "order", recognition_date: o.recognitionDate, included: o.included, amount: o.amount, currency: "VND", reason: o.included ? null : `status ${o.status} không thuộc tập tính Total Sale` }));
+  const facts = items.map((o) => ({ workspace_id: conn.workspace_id, order_id: idOf.get(o.sourceId)!, contract_version: CONTRACT_VERSION, source_fact_key: "order", recognition_date: o.recognitionDate, included: o.included, amount: o.amount, currency: "VND", reason: o.included ? null : `status ${o.status} khong thuoc tap tinh Total Sale` }));
   const up = await db.from("order_total_sale_facts").upsert(facts, { onConflict: "workspace_id,order_id,contract_version,source_fact_key" });
   if (up.error) throw new Error(`sale facts: ${up.error.message}`);
 }
 
-async function runPos(db: Db, days: number) {
+// Cach goi POS API da kiem bang thuc nghiem (28/10): ngay phai la camelCase startDateTime/endDateTime (snake_case bi bo qua va tra ca shop),
+// order_sources[][] = [-1, page_id] loc dung page (19/10 ra 85 don), fields[] chi lay truong can (don day du ~13KB/don, de vuot bo nho).
+const POS_FIELDS = ["id", "inserted_at", "updated_at", "status", "ad_id", "conversation_id", "total_price_after_sub_discount", "page_id", "order_sources"];
+
+async function runPos(db: Db, days: number, offset: number) {
   const key = Deno.env.get("POS_API_KEY");
-  if (!key) throw new SourceError("NOT_CONFIGURED", "Thiếu secret POS_API_KEY");
+  if (!key) throw new SourceError("NOT_CONFIGURED", "Thieu secret POS_API_KEY");
   const conn = await connection(db, "pos", SHOP_ID);
-  const { since, until } = windowOf(days);
-  // Lọc nguồn đơn ở phía worker (page_id + order_sources=-1) vì cách truyền mảng lồng trên URL chưa được docs xác nhận.
+  const { since, until } = windowOf(days, offset);
+  const PAGE_SIZE = 100;
+  const fetchPage = (page: number) => {
+    const q = new URLSearchParams({ api_key: key, page_size: String(PAGE_SIZE), page_number: String(page), update_status: "inserted_at", startDateTime: String(since), endDateTime: String(until) });
+    q.append("order_sources[][]", "-1");
+    q.append("order_sources[][]", PAGE_ID);
+    for (const f of POS_FIELDS) q.append("fields[]", f);
+    return getJson(`https://pos.pages.fm/api/v1/shops/${SHOP_ID}/orders?${q}`, "pos orders");
+  };
   let seen = 0;
   let total = 0;
   let totalEntries = 0;
-  let complete = false;
-  for (let page = 1; page <= 100; page++) {
-    const q = new URLSearchParams({ api_key: key, page_size: "100", page_number: String(page), update_status: "inserted_at", start_date_time: String(since), end_date_time: String(until) });
-    const body = await getJson(`https://pos.pages.fm/api/v1/shops/${SHOP_ID}/orders?${q}`, "pos orders");
+  let totalPages = 1;
+  for (let page = 1; page <= Math.min(totalPages, 200); page++) {
+    const body = await fetchPage(page);
     if (!Array.isArray(body?.data)) throw new SchemaChanged("orders.data[]");
-    totalEntries = Number(body.total_entries ?? totalEntries);
+    if (page === 1) { totalPages = Number(body.total_pages ?? 1); totalEntries = Number(body.total_entries ?? 0); }
     seen += body.data.length;
+    // Van loc lai o worker de khong ghi nham don page khac neu server bo qua bo loc.
     const mine = body.data.filter((r: { page_id?: unknown; order_sources?: unknown }) => String(r.page_id) === PAGE_ID && Number(r.order_sources) === -1);
-    const items = mine.map((r: unknown) => normalizeOrder(r as never));
-    await saveOrders(db, conn, items);
-    total += items.length;
-    if (page >= Number(body.total_pages ?? 1)) { complete = true; break; }
+    await saveOrders(db, conn, mine.map((r: unknown) => normalizeOrder(r as never)));
+    total += mine.length;
   }
-  if (!complete) throw new SourceError("PARTIAL", `pos orders còn trang sau ${seen} đơn đã đọc; checkpoint không được ghi`);
+  if (seen !== totalEntries) throw new SourceError("PARTIAL", `POS tra ${seen}/${totalEntries} don`);
   await finish(db, conn, "orders");
-  return { orders: total, seen, totalEntries, since, until };
+  return { orders: total, seen, totalEntries, totalPages, since, until };
 }
 
 Deno.serve(async (req) => {
@@ -161,10 +172,11 @@ Deno.serve(async (req) => {
   const url = new URL(req.url);
   const job = url.searchParams.get("job");
   const days = Math.min(Math.max(Number(url.searchParams.get("days") ?? 2) || 2, 1), 31);
+  const offset = Math.min(Math.max(Number(url.searchParams.get("offset") ?? 0) || 0, 0), 60);
   try {
-    if (job === "pancake") return json({ ok: true, ...(await runPancake(db, days)) });
-    if (job === "pos") return json({ ok: true, ...(await runPos(db, days)) });
-    return json({ error: "job phải là pancake hoặc pos" }, 400);
+    if (job === "pancake") return json({ ok: true, ...(await runPancake(db, days, offset)) });
+    if (job === "pos") return json({ ok: true, ...(await runPos(db, days, offset)) });
+    return json({ error: "job phai la pancake hoac pos" }, 400);
   } catch (e) {
     const code = e instanceof SourceError ? e.code : e instanceof SchemaChanged ? "SCHEMA_CHANGED" : "ERROR";
     return json({ ok: false, code, message: String((e as Error).message).slice(0, 300) }, 500);
