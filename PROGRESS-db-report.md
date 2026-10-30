@@ -121,3 +121,22 @@ STATUS: BLOCKED: human browser recovery needed for live Pancake verification/mig
 - Unauthenticated HTTP200 authentication_required; no aggregate table, private no-store; safe next route preserved. No changes to originalAdsUI files relative to deployeddda1953.
 - Full53tests/typecheck/lint/build passed before live apply. Private screenshot.local/pancake-quality-preview.png. Newpage NOT pushed/deployed. Need owner review before production.
 STATUS: BLOCKED: owner review/approval of Pancake quality preview before deploy
+
+## New owner request13:34
+Replace only tag-source section with per-campaign Pancake quality via exactPancakead_id?Metaad_id?campaign, not namejoins. Preserve rest of qualitypage and originalAdsUI. Plan/TODO active. Count eachconversation once; fullyknown singlecampaign only, missing/multiple mappings separate buckets. Include conv,phone/qualifiedrates,duplicate/no-need/closed-tag counts; no fakePOSorders. NewRPC wrapper can extend existingbaseJSON withcampaigns, stable snapshot to reconcile samecohort. No newpage deployapprovalyet.
+STATUS: IN PROGRESS: campaign linkage and quality table
+
+## Campaign quality implementation/live reconciliation
+- New wrapperRPC20261030060000 APPLIED LIVE. Exact Pancakead_id to Metawebhook/legacyad metadata; conflicting/missing/multiple campaign touches separate, oneconversation once.
+- Live day30cohort70=63campaign+2multi+5noad, phones32=31campaign+1multi, qualified21=20campaign+1multi. Source13:35VN. Samples real linkedIDs verified.
+- Added CampaignTable component; changed only oldtagsection plus loader/parser inqualitypage; AdsUI untouched. Unit+DBcoverage includes duplicateadtouches,samecampaignmanyads,samenameacrossaccounts,webhookIDs,quote-normalization,ownershipconflicts,permission/range,reconciliation.
+- Localpreview3009(delta-cloud) shows expected totals; campaignfilter Trangthat+NK2 returns5conversations/4phones/4qualified=80%/80%. Found uncontrolledGETform default field retained after datepresetnavigation; added formkeys for campaign+date forms, rebuilding before finalacceptance. Newpage notpushed.
+STATUS: IN PROGRESS: final UI form-state reset verification and preview
+
+## Campaign quality final preview
+- Wrapper20261030060000 finalversion (prefer webhook displaylabels over legacy, while IDs alone decide ownership) tested and APPLIED LIVE.
+- Full60tests15files/typecheck/lint pass, productionbuild pass. Preview3009 rebuilt/restarted(calm-basil); old delta-cloud previewserver stopped only for rebuild. MainAdsUI files unchanged.
+- Real UI allgroupsday30 total70/32phones/21qualified at13:35; later refresh14:05 total73/32/21,23rows. Exact percampaignfilter Trangthat+NK2 yields5conversations,4phones,4qualified(80%/80%). AccountfilterNK2 gives12rows; Hoomnay restores all23rows AND selectvalueall after formkeys fix. NoNaN/Infinity.
+- Private final image.local/pancake-campaign-preview.jpg (old pre-fix screenshot superseded). RPC filters/permissions tested; unsigned requests still private no-store/no data. No rawcustomerdata or messagecontents introduced.
+- Localpage changes NOT pushed/deployed; ownerreviewbeforedeploy. Need release SQL tab5D4077BC6C29084242468746A2B7D879 keepAlive pin after work; previewtab125828B14277C437B853F1E8BE519829. Pulse813de818-7b0d-47bd-baee-fa022ed8faf1 for approval followthrough.
+STATUS: BLOCKED: owner approval of campaign-quality preview before deploying new page
