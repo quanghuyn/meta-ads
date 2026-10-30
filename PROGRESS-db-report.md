@@ -96,3 +96,7 @@ STATUS: BLOCKED: owner review of original UI plus POS preview
 - Saved additive migration20261030040000_schedule_sync_pos_hourly.sql. This is already applied on DB; do not run the old30minute schedule after it.
 - Report still refresh-on-load/filter, not background auto-refresh. UI restore+POS remains local preview3007 and not pushed; owner has not yet approved deploy.
 STATUS: BLOCKED: hourly POS configured; waiting owner direction on UI preview/deployment
+
+## Approved production push 2026-10-30
+Owner explicitly approved deploy. Pushed dda1953 including originalUI+POS+hourlyschedule commits. GitHub public commit status confirms Vercel success (Deployment has completed) at03:50:28Z, deployment5yvU1GaGSBgK4gRmUyEubUxe3kyS. Public report HTTP200 and authentication_required as expected without cookies. Browser automation transport is currently timing out after gateway restart, including fresh Vercel tab; no production authenticated visual acceptance claimed yet. Need owner confirmation or browser recovery, not another push.
+STATUS: BLOCKED: deployed successfully; post-login production UI check pending browser recovery
