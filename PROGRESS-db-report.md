@@ -113,3 +113,11 @@ STATUS: IN PROGRESS: separate Pancake quality page
 - SQL tabB2DFC3AC8E2DB1FC92D2715F53EA4E61 may be stale; old recorded auth expired. Do not extract tokens or guess privateAPI.
 - ExistingUI/POS deployeddda1953Vercelsuccess but stillpending actualproduction logged-invisualacceptance; no newpage deployment. Pulse813de818-7b0d-47bd-baee-fa022ed8faf1 tracks continuation.
 STATUS: BLOCKED: human browser recovery needed for live Pancake verification/migration/preview
+
+## Pancake live verification and preview
+- Browser recovered. Applied exact tested20261030050000 RPC to actual Supabase. Source activePage196059750263125 sync11:35:04VN. Existing source tags verified (including Ko co nhu cau, Trung khach, Chot don), no invented ad-message equivalence.
+- Authenticated role RPC actualdata29Oct129conversations/62phones/40qualified;30Oct47/22/14. Rawaggregate count checks match received totals. Labels current and overlapping, not mutually exclusive.
+- Local production preview3008(faint-crest) authenticated browser shows same figures,29Oct48.1% phone/31%qualified,30Oct46.8%phone/29.8%qualified; tagfilter Ko co nhu cau returns8(17%) on30Oct. Datepresets work; noNaN/Infinity.
+- Unauthenticated HTTP200 authentication_required; no aggregate table, private no-store; safe next route preserved. No changes to originalAdsUI files relative to deployeddda1953.
+- Full53tests/typecheck/lint/build passed before live apply. Private screenshot.local/pancake-quality-preview.png. Newpage NOT pushed/deployed. Need owner review before production.
+STATUS: BLOCKED: owner review/approval of Pancake quality preview before deploy
