@@ -9,14 +9,18 @@ export async function proxy(request: NextRequest) {
     const db = createServerClient(config.url, config.key, {
       cookies: {
         getAll: () => request.cookies.getAll(),
-        setAll: values => {
+        setAll: (values) => {
           values.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           values.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
         },
       },
     });
-    try { await db.auth.getUser(); } catch { /* Page fails closed and shows unavailable. */ }
+    try {
+      await db.auth.getUser();
+    } catch {
+      /* Page fails closed and shows unavailable. */
+    }
   }
   response.headers.set('Cache-Control', 'private, no-store');
   return response;

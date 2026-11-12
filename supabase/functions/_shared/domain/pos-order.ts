@@ -26,27 +26,28 @@ export type NormalizedOrder = {
 };
 
 export class SchemaChanged extends Error {
-  readonly code = "SCHEMA_CHANGED";
+  readonly code = 'SCHEMA_CHANGED';
 }
 
 const toUtcIso = (v: unknown): string | null => {
-  if (typeof v !== "string" || v === "") return null;
+  if (typeof v !== 'string' || v === '') return null;
   const d = new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(v) ? v : `${v}Z`);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 };
 
 export function normalizeOrder(raw: RawOrder): NormalizedOrder {
-  if ((typeof raw.id !== "number" && typeof raw.id !== "string") || raw.id === "") throw new SchemaChanged("order.id");
+  if ((typeof raw.id !== 'number' && typeof raw.id !== 'string') || raw.id === '') throw new SchemaChanged('order.id');
   const created = toUtcIso(raw.inserted_at);
   if (!created) throw new SchemaChanged(`order.inserted_at (${raw.id})`);
   const amount = raw.total_price_after_sub_discount;
-  if (typeof amount !== "number" || !Number.isFinite(amount)) throw new SchemaChanged(`order.total_price_after_sub_discount (${raw.id})`);
+  if (typeof amount !== 'number' || !Number.isFinite(amount))
+    throw new SchemaChanged(`order.total_price_after_sub_discount (${raw.id})`);
   const status = Number(raw.status);
   if (!Number.isInteger(status)) throw new SchemaChanged(`order.status (${raw.id})`);
   return {
     sourceId: String(raw.id),
-    conversationId: typeof raw.conversation_id === "string" && raw.conversation_id !== "" ? raw.conversation_id : null,
-    adId: typeof raw.ad_id === "string" && raw.ad_id !== "" ? raw.ad_id : null,
+    conversationId: typeof raw.conversation_id === 'string' && raw.conversation_id !== '' ? raw.conversation_id : null,
+    adId: typeof raw.ad_id === 'string' && raw.ad_id !== '' ? raw.ad_id : null,
     createdAt: created,
     updatedAt: toUtcIso(raw.updated_at),
     status: String(status),

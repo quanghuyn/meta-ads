@@ -1,37 +1,50 @@
-# Bộ giao việc Claude Code — Dashboard Meta Ads / Pancake / POS
+# Dashboard Meta Ads × Pancake × POS
 
-Ngày: 28/10/2026. Bộ này gồm tài liệu triển khai và ảnh tham chiếu, chưa có mã ứng dụng.
+Dashboard nội bộ cho team marketing: chi tiêu Meta Ads, chất lượng hội thoại Pancake và doanh thu Pancake POS trên cùng một nơi. Chỉ đọc dữ liệu, không gửi tin, không sửa đơn, không đổi quảng cáo.
 
-## Cách sử dụng
+## Các trang
 
-1. Giải nén vào thư mục dự án bạn sẽ mở bằng Claude Code. Nếu repo đang có code, giữ nguyên code và hợp nhất CLAUDE.md; không ghi đè hướng dẫn cũ.
-2. Mở START-HERE.md ở gốc, copy prompt triển khai vào Claude Code.
-3. Claude đọc plan/specs, khảo sát repo và thực hiện checklist. Không cần cài các skill AgentKit của người lập kế hoạch.
-4. Cấp credentials qua môi trường/secret store khi tới bước tích hợp; các mục nghiệp vụ đã chốt nằm ở docs/decisions.md; chỉ còn cần xác nhận ánh xạ thẻ sale khi cần kích hoạt quy tắc.
-
-## Thành phần trong gói
-
-| File/thư mục | Nội dung |
+| Đường dẫn | Nội dung |
 |---|---|
-| START-HERE.md | Prompt bắt đầu và tiếp tục phiên sau |
-| CLAUDE.md | Quy tắc thực thi và các quyết định không được tự đổi |
-| assets/dashboard-reference.png | Ảnh dashboard do người dùng cung cấp |
-| plans/261028-1208-meta-ads-pancake-pos-dashboard/plan.md | Mục lục, lộ trình 5 giai đoạn |
-| plans/.../implementation-checklist.md | Các task, phụ thuộc và bằng chứng hoàn tất |
-| plans/.../specs/01-product-architecture.md | Product brief, stack, folder structure, roles |
-| plans/.../specs/02-database-security.md | Schema/constraints/indexes/migrations/RLS |
-| plans/.../specs/03-source-sync-contracts.md | Adapters, jobs, retry, webhook, secrets |
-| plans/.../specs/04-business-rules-metrics.md | Qualification, attribution, cohort và KPI |
-| plans/.../specs/05-web-api-ui.md | API contract, filters, DTO, UI states |
-| plans/.../specs/06-testing-release.md | Test cases, đối soát, CI, deploy/rollback |
-| plans/.../phase-*.md | Mục tiêu, rủi ro và tiêu chí của từng giai đoạn |
+| `/bao-cao` | Tổng quan Ads × Doanh thu: chi tiêu, Total Sale, CIR, ROAS theo ngày và theo chiến dịch |
+| `/chat-luong-mess` | Chất lượng mess Pancake theo ngày và theo chiến dịch: SĐT, qualified, nhãn sale |
+| `/dang-nhap` | Đăng nhập Supabase Auth; cần membership admin hoặc marketing |
 
-## Phạm vi đã chốt
+## Kiến trúc
 
-2 tài khoản Ads, 1 page, 1 shop; Total Sale đúng báo cáo POS; qualified theo nhu cầu + có SĐT (không điều kiện khu vực); web GitHub/Vercel/Supabase. Thiết kế nội bộ lấy Next.js/TypeScript/Tailwind/shadcn/Recharts và Supabase Postgres/Auth/Cron/Edge Functions.
+- Web: Next.js (App Router), TypeScript, Tailwind, Recharts, triển khai trên Vercel.
+- Dữ liệu: Supabase Postgres với RLS; web chỉ đọc qua các RPC tổng hợp, không dùng service-role key.
+- Meta: nhận qua webhook (`supabase/functions/meta-ads-webhook`), chuẩn hoá bằng trigger trong DB.
+- Pancake và POS: worker `supabase/functions/sync` chạy theo lịch pg_cron.
+- `supabase/functions/sync-meta` đang tắt lịch, giữ lại để bật lại khi cần (xem `docs/webhook-reporting.md`).
 
-Các lựa chọn còn draft: ánh xạ thẻ sale sang mức chất lượng, xử lý "Trùng khách", cửa sổ attribution (xem docs/decisions.md). Đây là thông tin cần cấu hình/xác minh, không ngăn Claude xây phần nền tảng độc lập.
+Khai báo nguồn của web (ID tài khoản, page, shop) nằm ở `src/lib/sources.ts`; ngưỡng CIR ở `src/lib/format.ts`. Worker Deno và các hàm SQL có bản khai báo riêng.
 
-## Tiêu chí thành công
+## Chạy local
 
-Claude tạo code hoạt động, test có kết quả thực tế, source mapping có bằng chứng, dashboard không hiển thị dữ liệu giả khi nguồn thiếu. Dữ liệu chưa ghép phải hiển thị lý do; tiền/đơn/hội thoại không đếm trùng. Ước lượng trước đây 17–25 ngày công chỉ là dự toán kỹ thuật, không phải cam kết thời gian chạy của Claude Code.
+```bash
+npm install
+cp .env.example .env.local   # điền URL và anon key của Supabase
+npm run dev
+```
+
+Production dùng cặp biến `REPORT_SUPABASE_URL` và `REPORT_SUPABASE_PUBLISHABLE_KEY`; chi tiết ở `docs/deployment.md`.
+
+## Kiểm tra
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+`npm test` chạy unit test và test migration/RLS trên PGlite. Edge Function chạy trên Deno, cần kiểm riêng bằng `deno check`. `npm run format` định dạng code bằng Prettier.
+
+## Tài liệu
+
+- `docs/decisions.md`: quyết định nghiệp vụ của chủ dự án, ưu tiên cao nhất khi có mâu thuẫn.
+- `docs/data-contracts.md`: các trường nguồn đã kiểm chứng.
+- `docs/webhook-reporting.md`, `docs/pancake-quality.md`, `docs/report-ui-data.md`: hợp đồng từng phần.
+- `docs/deployment.md`: triển khai và rollback.
+- `plans/`, `reports/`, `START-HERE.md`: bộ kế hoạch và prompt giao việc ban đầu, giữ làm hồ sơ.

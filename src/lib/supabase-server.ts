@@ -21,7 +21,7 @@ export async function reportClient(writable = false) {
   return createServerClient(config.url, config.key, {
     cookies: {
       getAll: () => jar.getAll(),
-      setAll: values => {
+      setAll: (values) => {
         // Server renders cannot set cookies; src/proxy.ts refreshes sessions first.
         if (writable) values.forEach(({ name, value, options }) => jar.set(name, value, options));
       },
