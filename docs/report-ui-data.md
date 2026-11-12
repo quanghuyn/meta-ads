@@ -12,6 +12,7 @@ The fixed NK2/NK3 columns currently mean IDs `1492352028605038` and `11146455970
 - Mapping uses exact ad IDs, account IDs and campaign IDs from webhook or legacy entity relationships. Conflicting relationships remain unassigned. Same names never create joins.
 - Account/campaign buckets plus no-ad and unknown-ad buckets reconcile to the shop total. Unassigned or out-of-scope accounts stay separate; no spend-proportional revenue allocation.
 - A day without observed order facts returns null, not a manufactured zero. A day containing only explicitly excluded observations may return zero included orders.
+- Order status can change after creation (cancelled while waiting for stock, returned). The hourly job re-reads only the last 2 days; `sync-pos-month` re-reads 31 days every 3 days, so a month-to-date Total Sale can drop for up to 3 days after such a change is made in POS.
 - POS sync timestamp is visible in the existing source note. It is an observation timestamp, not a certified complete historical coverage interval. Partial-day or differently timed Meta/POS ratios are provisional.
 
 ## Unavailable

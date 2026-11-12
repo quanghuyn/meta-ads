@@ -34,7 +34,8 @@ async function BaoCaoContent({
 }) {
   await connection();
   const query = await searchParams;
-  const range = reportRange(query.from, query.to);
+  // Load from the start of the month so the "Từ đầu tháng" preset has data; the view still opens on 7 days.
+  const range = reportRange(query.from, query.to, new Date(), true);
   if (!range) return <State code="invalid_range">Khoảng ngày không hợp lệ (tối đa 367 ngày).</State>;
   const db = await reportClient();
   if (!db)

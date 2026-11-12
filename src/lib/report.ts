@@ -14,9 +14,15 @@ export type SnapshotRow = {
   generated_at: string | null;
 };
 
-export function reportRange(from: unknown, to: unknown, today = new Date()) {
+// First day of the month for a YYYY-MM-DD date.
+export const monthStart = (date: string) => date.slice(0, 8) + '01';
+
+// Default range is the last 7 Vietnam days. withMonthStart widens the default start back to
+// the first day of the month so a month-to-date view can be filtered client-side.
+export function reportRange(from: unknown, to: unknown, today = new Date(), withMonthStart = false) {
   const end = new Date(today.getTime() + 7 * 3600_000).toISOString().slice(0, 10);
-  const start = new Date(Date.parse(end) - 6 * 86400_000).toISOString().slice(0, 10);
+  const week = new Date(Date.parse(end) - 6 * 86400_000).toISOString().slice(0, 10);
+  const start = withMonthStart && monthStart(end) < week ? monthStart(end) : week;
   const f = from === undefined ? start : from;
   const t = to === undefined ? end : to;
   const valid = (v: unknown): v is string =>

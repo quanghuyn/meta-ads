@@ -3,6 +3,7 @@ import { createContext, useContext, useMemo, useState } from 'react';
 import { CIR_TARGET, compact as baseCompact, num as baseNum, pct as basePct, vnd as baseVnd } from '@/lib/format';
 import type { DashboardCampaign } from '@/lib/dashboard-data';
 import { AD_ACCOUNT_NAMES, DASHBOARD_ACCOUNTS, POS_SHOP_ID } from '@/lib/sources';
+import { monthStart } from '@/lib/report';
 import type { PosDashboardData as DashboardData } from '@/lib/pos-dashboard';
 import { ShareDonut, SpendSaleChart } from './charts';
 
@@ -25,12 +26,17 @@ const shift = (d: string, n: number) => {
   return t.toISOString().slice(0, 10);
 };
 
-const makePresets = (first: string, last: string) => [
-  { id: 'today', label: 'Hôm nay', from: last, to: last },
-  { id: 'yesterday', label: 'Hôm qua', from: shift(last, -1), to: shift(last, -1) },
-  { id: '3d', label: '3 ngày', from: shift(last, -2), to: last },
-  { id: '7d', label: '7 ngày', from: first, to: last },
-];
+// Presets never start before the loaded range, so the active button matches what is shown.
+const makePresets = (first: string, last: string) => {
+  const clamp = (d: string) => (d < first ? first : d);
+  return [
+    { id: 'today', label: 'Hôm nay', from: last, to: last },
+    { id: 'yesterday', label: 'Hôm qua', from: shift(last, -1), to: shift(last, -1) },
+    { id: '3d', label: '3 ngày', from: clamp(shift(last, -2)), to: last },
+    { id: '7d', label: '7 ngày', from: clamp(shift(last, -6)), to: last },
+    { id: 'mtd', label: 'Từ đầu tháng', from: clamp(monthStart(last)), to: last },
+  ];
+};
 
 const sum = <T,>(a: T[], f: (x: T) => number) => a.reduce((s, x) => s + f(x), 0);
 const ratio = (n: number, d: number) => (Number.isFinite(n) && Number.isFinite(d) && d > 0 ? n / d : null);
