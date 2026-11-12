@@ -2,6 +2,13 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import { CIR_TARGET, compact as baseCompact, num as baseNum, pct as basePct, vnd as baseVnd } from '@/lib/format';
 import type { DashboardCampaign } from '@/lib/dashboard-data';
+import {
+  receivedSpend,
+  metaSpendCoverage,
+  metaMetricCoverage,
+  financeFromReceived,
+  type ReceivedSpend,
+} from '@/lib/meta-spend-coverage';
 import { AD_ACCOUNT_NAMES, DASHBOARD_ACCOUNTS, POS_SHOP_ID } from '@/lib/sources';
 import { monthStart } from '@/lib/report';
 import type { PosDashboardData as DashboardData } from '@/lib/pos-dashboard';
@@ -16,6 +23,8 @@ const useData = () => {
 const num = (v: number) => (Number.isFinite(v) ? baseNum(v) : '—');
 const vnd = (v: number) => (Number.isFinite(v) ? baseVnd(v) : '—');
 const compact = (v: number) => (Number.isFinite(v) ? baseCompact(v) : '—');
+const receivedVnd = (v: ReceivedSpend) => (v.received === null ? vnd(NaN) : vnd(v.received) + (v.partial ? ' †' : ''));
+const receivedNum = (v: ReceivedSpend) => (v.received === null ? num(NaN) : num(v.received) + (v.partial ? ' †' : ''));
 const pct = (v: number, digits?: number) => (Number.isFinite(v) ? basePct(v, digits) : 'N/A');
 const breakEven = 1 / CIR_TARGET;
 const dm = (d: string) => d.slice(8) + '/' + d.slice(5, 7);
@@ -229,7 +238,7 @@ function CirByCampaign({ from, to }: { from: string; to: string }) {
   const [day, setDay] = useState('range');
   const [f, t] = day === 'range' ? [from, to] : [day, day];
   const shop = dayRows.filter((r) => r.date >= f && r.date <= t);
-  const shopSpend = sum(shop, (r) => r.nk2.spend + r.nk3.spend);
+  const shopSpend = metaSpendCoverage(shop, f, t).total.complete ?? NaN;
   const shopSale = sum(shop, (r) => r.sale);
   const rows = aggregate(campaignDaily, f, t)
     .filter((r) => r.spend > 0)
@@ -459,7 +468,7 @@ function CampaignTable({ from, to }: { from: string; to: string }) {
             <tr className="font-semibold text-slate-900">
               <td className="py-1">Tổng ({rows.length} chiến dịch)</td>
               <td />
-              <td>{vnd(total.spend)}</td>
+              <td>{receivedVnd(receivedSpend(rows.map((r) => r.spend)))}</td>
               <td>{cpm(total)}</td>
               <td>{ctr(total)}</td>
               <td>{num(orders)}</td>
@@ -524,23 +533,29 @@ function DashboardView() {
 
   const m = useMemo(() => {
     const rows = dayRows.filter((r) => r.date >= from && r.date <= to);
-    const spend2 = sum(rows, (r) => r.nk2.spend);
-    const spend3 = sum(rows, (r) => r.nk3.spend);
+    const coverage = metaSpendCoverage(rows, from, to);
+    const impressionCoverage = metaMetricCoverage(rows, from, to, 'impressions');
+    const clickCoverage = metaMetricCoverage(rows, from, to, 'clicks');
+    const spend2 = coverage.nk2.complete ?? NaN;
+    const spend3 = coverage.nk3.complete ?? NaN;
     const imp2 = sum(rows, (r) => r.nk2.impressions),
       imp3 = sum(rows, (r) => r.nk3.impressions);
     const clk2 = sum(rows, (r) => r.nk2.clicks),
       clk3 = sum(rows, (r) => r.nk3.clicks);
     return {
       rows,
+      coverage,
+      impressionCoverage,
+      clickCoverage,
       spend2,
       spend3,
       imp2,
       imp3,
       clk2,
       clk3,
-      spend: spend2 + spend3,
-      impressions: imp2 + imp3,
-      clicks: clk2 + clk3,
+      spend: coverage.total.complete ?? NaN,
+      impressions: impressionCoverage.total.complete ?? NaN,
+      clicks: clickCoverage.total.complete ?? NaN,
       sale: sum(rows, (r) => r.sale),
       orders: sum(rows, (r) => r.orders),
       saleAd: sum(rows, (r) => r.saleAd),
@@ -550,9 +565,11 @@ function DashboardView() {
     };
   }, [from, to, dayRows]);
 
-  const cir = ratio(m.spend, m.sale);
-  const roas = ratio(m.sale, m.spend);
-  const cirTone = cir === null ? 'text-slate-900' : cir <= CIR_TARGET ? 'text-emerald-700' : 'text-red-600';
+  const finance = financeFromReceived(m.coverage.total, m.sale, m.orders);
+  const cir = finance.display.cir;
+  const roas = finance.display.roas;
+  const cirTone =
+    finance.provisional || cir === null ? 'text-slate-900' : cir <= CIR_TARGET ? 'text-emerald-700' : 'text-red-600';
   const sub = (n: number) => `${dec(n * 100)} điểm`;
 
   return (
@@ -565,6 +582,13 @@ function DashboardView() {
           ? `đã nhận đến ${new Date(posSyncedAt).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`
           : 'chưa đọc được'}
         ; số liệu hai nguồn khác thời điểm, CIR/ROAS tạm tính. Pancake chưa nối; — không phải 0.{' '}
+        {(m.coverage.total.partial || m.impressionCoverage.total.partial || m.clickCoverage.total.partial) && (
+          <span>
+            {' '}
+            † Chỉ dùng số đã nhận, không coi phần chưa có là 0. CIR/CPA/ROAS khi thiếu nguồn được ghi tạm tính và có thể
+            chưa bao gồm toàn bộ chi phí.{' '}
+          </span>
+        )}
         {excludedAccounts.length > 0 && (
           <>Chưa gộp tài khoản ngoài hai cột gốc/chưa rõ tiền tệ: {excludedAccounts.join(', ')}.</>
         )}
@@ -623,18 +647,42 @@ function DashboardView() {
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
             <Kpi
-              label="CIR (chi phí / Total Sale shop)"
-              badge={cir === null ? 'N/A' : (cir <= CIR_TARGET ? 'Dư ' : 'Vượt ') + sub(Math.abs(CIR_TARGET - cir))}
+              label={finance.provisional ? 'CIR tạm tính (chi tiêu đã nhận)' : 'CIR (chi phí / Total Sale shop)'}
+              badge={
+                finance.provisional
+                  ? 'Theo số đã nhận'
+                  : cir === null
+                    ? 'N/A'
+                    : (cir <= CIR_TARGET ? 'Dư ' : 'Vượt ') + sub(Math.abs(CIR_TARGET - cir))
+              }
               value={orNA(cir, (v) => pct(v))}
               tone={cirTone}
-              foot={`Mục tiêu ${pct(CIR_TARGET, 0)} · ${vnd(m.spend)} / ${vnd(m.sale)}`}
+              foot={
+                cir === null
+                  ? m.sale === 0
+                    ? 'Chưa có doanh thu để tính CIR'
+                    : 'Chưa đủ dữ liệu để tính CIR'
+                  : finance.provisional
+                    ? 'Chi tiêu đã nhận / Total Sale shop; có thể chưa đủ'
+                    : `Mục tiêu ${pct(CIR_TARGET, 0)} · ${vnd(m.spend)} / ${vnd(m.sale)}`
+              }
             />
             <Kpi
-              label="ROAS (Total Sale shop / chi tiêu)"
-              badge={`Hoà vốn ${dec(breakEven)}x`}
+              label={finance.provisional ? 'ROAS tạm tính (chi tiêu đã nhận)' : 'ROAS (Total Sale shop / chi tiêu)'}
+              badge={finance.provisional ? 'Theo số đã nhận' : `Hoà vốn ${dec(breakEven)}x`}
               value={orNA(roas, (v) => dec(v) + 'x')}
-              tone={roas === null ? 'text-slate-900' : roas >= breakEven ? 'text-blue-700' : 'text-red-600'}
-              foot="Doanh thu cả shop, kể cả đơn không có ad_id"
+              tone={
+                finance.provisional || roas === null
+                  ? 'text-slate-900'
+                  : roas >= breakEven
+                    ? 'text-blue-700'
+                    : 'text-red-600'
+              }
+              foot={
+                finance.provisional
+                  ? 'Tạm tính; chưa bao gồm chi phí chưa nhận'
+                  : 'Doanh thu cả shop, kể cả đơn không có ad_id'
+              }
             />
             <Kpi
               label="Total Sale"
@@ -643,16 +691,28 @@ function DashboardView() {
               foot={`AOV: ${orNA(ratio(m.sale, m.orders), vnd)}`}
             />
             <Kpi
-              label="Chi tiêu Meta"
-              badge="NK2 + NK3"
-              value={vnd(m.spend)}
-              foot={`${num(m.impressions)} hiển thị · CPM ${orNA(ratio(m.spend * 1000, m.impressions), vnd)}`}
+              label={m.coverage.total.partial ? 'Chi tiêu Meta đã nhận' : 'Chi tiêu Meta'}
+              badge={`${m.coverage.total.known}/${m.coverage.total.expected} nguồn-ngày có số`}
+              value={receivedVnd(m.coverage.total)}
+              foot={
+                m.coverage.total.partial
+                  ? '† Số đã nhận; chưa xác định tổng đầy đủ'
+                  : `${receivedNum(m.impressionCoverage.total)} hiển thị · CPM ${orNA(ratio(m.spend * 1000, m.impressions), vnd)}`
+              }
             />
             <Kpi
-              label="CPA (chi tiêu / đơn)"
-              badge="Toàn shop"
-              value={orNA(ratio(m.spend, m.orders), vnd)}
-              foot={`CPA hoà vốn: ${orNA(ratio(m.sale * CIR_TARGET, m.orders), vnd)}`}
+              label={finance.provisional ? 'CPA tạm tính (chi tiêu đã nhận)' : 'CPA (chi tiêu / đơn)'}
+              badge={finance.provisional ? 'Theo số đã nhận' : 'Toàn shop'}
+              value={orNA(finance.display.cpa, vnd)}
+              foot={
+                finance.display.cpa === null
+                  ? m.orders === 0
+                    ? 'Chưa có đơn POS để tính CPA'
+                    : 'Chưa đủ dữ liệu để tính CPA'
+                  : finance.provisional
+                    ? 'Chi tiêu đã nhận / đơn POS; có thể chưa đủ'
+                    : `CPA hoà vốn: ${orNA(ratio(m.sale * CIR_TARGET, m.orders), vnd)}`
+              }
             />
             <Kpi
               label="Đơn có ad_id"
@@ -665,14 +725,20 @@ function DashboardView() {
           <div className="grid gap-5 lg:grid-cols-2">
             <CirByCampaign from={from} to={to} />
 
-            <Card title="2. Chi tiêu vs Total Sale và ROAS" sub="Tiền và ROAS dùng hai trục riêng.">
+            <Card
+              title="2. Chi tiêu vs Total Sale và ROAS"
+              sub="Chi tiêu và ROAS dùng số đã nhận; † là tạm tính khi chưa đủ nguồn. Hai trục riêng."
+            >
               <SpendSaleChart
                 breakEven={breakEven}
+                partialSpend={m.coverage.total.partial}
                 data={m.rows.map((r) => ({
                   name: dm(r.date),
-                  spend: r.nk2.spend + r.nk3.spend,
+                  spend: receivedSpend([r.nk2.spend, r.nk3.spend]).received ?? NaN,
                   sale: r.sale,
-                  roas: r.sale / (r.nk2.spend + r.nk3.spend),
+                  roas:
+                    financeFromReceived(receivedSpend([r.nk2.spend, r.nk3.spend]), r.sale, r.orders).display.roas ??
+                    NaN,
                   sub: `${num(r.orders)} đơn`,
                 }))}
               />
@@ -684,13 +750,13 @@ function DashboardView() {
             >
               <ol className="space-y-2 text-sm">
                 <li className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-blue-900">
-                  Hiển thị: <b>{num(m.impressions)}</b>{' '}
+                  Hiển thị: <b>{receivedNum(m.impressionCoverage.total)}</b>{' '}
                   <span className="text-xs text-slate-700">
                     · CPM {orNA(ratio(m.spend * 1000, m.impressions), vnd)}
                   </span>
                 </li>
                 <li className="rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-indigo-900">
-                  Click (tất cả): <b>{num(m.clicks)}</b>{' '}
+                  Click (tất cả): <b>{receivedNum(m.clickCoverage.total)}</b>{' '}
                   <span className="text-xs text-slate-700">
                     · CTR {orNA(ratio(m.clicks, m.impressions), (v) => pct(v))} · CPC{' '}
                     {orNA(ratio(m.spend, m.clicks), vnd)}
@@ -712,7 +778,8 @@ function DashboardView() {
                 <li className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-900">
                   Đơn POS: <b>{num(m.orders)}</b>{' '}
                   <span className="text-xs text-slate-700">
-                    · {vnd(m.sale)} · CPA {orNA(ratio(m.spend, m.orders), vnd)}
+                    · {vnd(m.sale)} · CPA {orNA(finance.display.cpa, vnd)}
+                    {finance.provisional ? ' †' : ''}
                   </span>
                 </li>
               </ol>
@@ -743,33 +810,46 @@ function DashboardView() {
                 </thead>
                 <tbody>
                   {m.rows.map((r) => {
-                    const s = r.nk2.spend + r.nk3.spend;
+                    const dailySpend = receivedSpend([r.nk2.spend, r.nk3.spend]);
+                    const dailyFinance = financeFromReceived(dailySpend, r.sale, r.orders);
                     return (
                       <tr key={r.date} className="border-b text-slate-900">
                         <td className="py-1">{dm(r.date)}</td>
                         <td>{vnd(r.nk2.spend)}</td>
                         <td>{vnd(r.nk3.spend)}</td>
-                        <td>{vnd(s)}</td>
+                        <td>{receivedVnd(dailySpend)}</td>
                         <td>{vnd(r.sale)}</td>
                         <td>{num(r.orders)}</td>
                         <td>{num(r.inbox)}</td>
                         <td>{num(r.phones)}</td>
-                        <td>{pct(s / r.sale)}</td>
-                        <td>{Number.isFinite(r.sale / s) ? dec(r.sale / s) + 'x' : 'N/A'}</td>
+                        <td>
+                          {orNA(dailyFinance.display.cir, (v) => pct(v))}
+                          {dailyFinance.provisional && dailyFinance.display.cir !== null ? ' †' : ''}
+                        </td>
+                        <td>
+                          {orNA(dailyFinance.display.roas, (v) => dec(v) + 'x')}
+                          {dailyFinance.provisional && dailyFinance.display.roas !== null ? ' †' : ''}
+                        </td>
                       </tr>
                     );
                   })}
                   <tr className="font-semibold text-slate-900">
                     <td className="py-1">Tổng</td>
-                    <td>{vnd(m.spend2)}</td>
-                    <td>{vnd(m.spend3)}</td>
-                    <td>{vnd(m.spend)}</td>
+                    <td>{receivedVnd(m.coverage.nk2)}</td>
+                    <td>{receivedVnd(m.coverage.nk3)}</td>
+                    <td>{receivedVnd(m.coverage.total)}</td>
                     <td>{vnd(m.sale)}</td>
                     <td>{num(m.orders)}</td>
                     <td>{num(m.inbox)}</td>
                     <td>{num(m.phones)}</td>
-                    <td>{orNA(cir, (v) => pct(v))}</td>
-                    <td>{orNA(roas, (v) => dec(v) + 'x')}</td>
+                    <td>
+                      {orNA(cir, (v) => pct(v))}
+                      {finance.provisional && cir !== null ? ' †' : ''}
+                    </td>
+                    <td>
+                      {orNA(roas, (v) => dec(v) + 'x')}
+                      {finance.provisional && roas !== null ? ' †' : ''}
+                    </td>
                   </tr>
                 </tbody>
               </table>

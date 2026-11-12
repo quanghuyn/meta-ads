@@ -20,7 +20,15 @@ export type SharePoint = { name: string; value: number; color: string };
 
 const fmt = (n: number) => new Intl.NumberFormat('vi-VN').format(Math.round(n));
 
-export function SpendSaleChart({ data, breakEven }: { data: TrendPoint[]; breakEven: number }) {
+export function SpendSaleChart({
+  data,
+  breakEven,
+  partialSpend = false,
+}: {
+  data: TrendPoint[];
+  breakEven: number;
+  partialSpend?: boolean;
+}) {
   return (
     <div role="img" aria-label="Biểu đồ chi tiêu, doanh thu và ROAS theo chiến dịch" className="h-80">
       <ResponsiveContainer>
@@ -42,12 +50,27 @@ export function SpendSaleChart({ data, breakEven }: { data: TrendPoint[]; breakE
           />
           <YAxis yAxisId="roas" orientation="right" tickFormatter={(v) => v + 'x'} tick={{ fontSize: 12 }} />
           <Tooltip
-            formatter={(v, k) => (k === 'ROAS' ? Number(v).toFixed(2).replace('.', ',') + 'x' : fmt(Number(v)) + ' đ')}
+            formatter={(v, k) =>
+              String(k).startsWith('ROAS') ? Number(v).toFixed(2).replace('.', ',') + 'x' : fmt(Number(v)) + ' đ'
+            }
           />
           <Legend />
-          <Bar yAxisId="money" dataKey="spend" name="Chi tiêu" fill="#e11d48" radius={[4, 4, 0, 0]} />
+          <Bar
+            yAxisId="money"
+            dataKey="spend"
+            name={partialSpend ? 'Chi tiêu đã nhận' : 'Chi tiêu'}
+            fill="#e11d48"
+            radius={[4, 4, 0, 0]}
+          />
           <Bar yAxisId="money" dataKey="sale" name="Total Sale" fill="#2563eb" radius={[4, 4, 0, 0]} />
-          <Line yAxisId="roas" dataKey="roas" name="ROAS" stroke="#f59e0b" strokeWidth={2} dot />
+          <Line
+            yAxisId="roas"
+            dataKey="roas"
+            name={partialSpend ? 'ROAS tạm tính' : 'ROAS'}
+            stroke="#f59e0b"
+            strokeWidth={2}
+            dot
+          />
           <ReferenceLine
             yAxisId="roas"
             y={breakEven}
